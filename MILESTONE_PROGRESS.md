@@ -15,7 +15,8 @@ Records only what has been verified. Git operations (commits, tags, pushes) are 
 | 7 | `task-owner` | ✅ Implemented · automated browser tests passed | See below. |
 | 8 | `due-tint` | ✅ Implemented · automated browser tests passed | See below. |
 | 9 | `context` | ✅ Implemented · automated browser tests passed | See below. |
-| 10–13 | — | ⬜ Not started | |
+| 10 | `copy-prompt` | ✅ Implemented · automated browser tests passed | See below. |
+| 11–13 | — | ⬜ Not started | |
 
 ## M4 `data-model` — 2026-10-20
 
@@ -257,3 +258,43 @@ Records only what has been verified. Git operations (commits, tags, pushes) are 
 - The last-updated hint shows the *saved* timestamp; while the modal is open with unsaved context edits it still shows the previous save (by design — the timestamp only changes on save).
 
 **Deliberately not implemented in M9** — M10 "Copy as Prompt Context" button, M11 anchor board, M12 secret sauce, drag-and-drop.
+
+## M10 `copy-prompt` — 2026-10-20
+
+**What was built**
+
+- **Markdown formatter (`src/utils/promptUtils.ts`):** pure `formatTaskAsPrompt(task)` serialises a task into a structured Markdown prompt: `# Task: <title>`, a `## Task Details` list (Type / Status as human-readable labels — Feature/Bug, To Do/In Progress/Review/Done — Assignee, Due Date with **"Not set"** for null, Created Date, `AI Tool` only when selected, `Context Last Updated` in local time only when a timestamp exists), `## Description` (verbatim), and `## AI Context` with the saved context **byte-for-byte** (headings, lists, blank lines, code fences — never rewritten/trimmed/summarised) or **"No additional AI context saved."** when empty. Never mutates the task (verified against a deep-frozen object).
+- **Copy button on every card:** a full-width, understated `Copy as Prompt Context` button (DESIGN.md §4 secondary-action styling) at the bottom of each `TaskCard`, separated by a hairline. Click and keydown events stop propagation (the M4/M7 pattern), so copying never opens the edit modal and never touches status/assignee. Fully keyboard-accessible (native button, visible focus ring, descriptive `aria-label`).
+- **Clipboard (`src/utils/clipboardUtils.ts`):** `copyTextToClipboard(text)` tries the modern `navigator.clipboard.writeText` first; on unavailability, rejection or permission errors it falls back to a hidden off-screen textarea + `document.execCommand('copy')` — checking execCommand's actual boolean result, removing the temp node, and restoring the previous focus and text selection. Returns true only on a genuine success.
+- **Total-failure fallback:** when both methods fail, a `ManualCopyDialog` (dialog semantics, Escape/backdrop/✕/Close, body scroll lock, focus restore) presents the generated Markdown in a read-only, pre-selected textarea so the user can copy it manually. The success toast is never shown in this case.
+- **Toasts (M7 component reused):** success → "Context copied — ready to paste." (DESIGN.md §5 microcopy); failure → "Couldn't copy automatically. Select the text to copy manually." Both keep `role="status"`/`aria-live="polite"`, `pointer-events-none` and the 2.5 s auto-dismiss, and coexist with handoff toasts through the same replace-on-new-toast behaviour.
+- **M4–M9 preserved:** the button is an addition only; badges, owner row, handoff/status selects, due tints, modal and M9 context editor are untouched.
+
+**Files created / modified**
+
+- `src/utils/promptUtils.ts` — new: `formatTaskAsPrompt`.
+- `src/utils/clipboardUtils.ts` — new: `copyTextToClipboard` + `legacyCopy` fallback.
+- `src/components/ManualCopyDialog.tsx` — new: manual-copy fallback dialog.
+- `src/components/TaskCard.tsx` — copy button row, `onCopyPrompt` prop.
+- `src/components/BoardColumn.tsx` — passes `onCopyPrompt` through.
+- `src/App.tsx` — `handleCopyPrompt` (format → copy → toast/dialog), `manualCopy` state, renders `ManualCopyDialog`, M10 header comment.
+- `tests/helpers/cdp-harness.ts` — new `clickCopyButton` helper.
+- `tests/copy-prompt.test.ts` — new (10 pure formatter tests + 9 browser tests).
+- `tests/run.mjs` — registered `tests/copy-prompt.test.ts`.
+- `MILESTONE_PROGRESS.md` — this file.
+
+**Tests performed**
+
+- `npm run typecheck` — passed, no errors.
+- `npm run build` — passed (Vite 5.4.21, 44 modules, ~1.0 s).
+- `npm test` — **104/104 passed, run twice to confirm repeatability** (85 existing + 19 new). New coverage:
+  - *Formatter (pure, Node):* title + description included; human-readable type/status (no raw ids); assignee + created date; due date formatting; "Not set" for null due dates; AI Tool line only when selected; `Context Last Updated` in local time when present (timezone-proof construction via a local-midnight clock) and absent when null; multiline markdown context preserved exactly inside `## AI Context`; no-context tasks get the placeholder and keep the full section structure; a deep-frozen task stays byte-identical.
+  - *Browser:* the button appears on all four cards with the exact label; copying never opens the modal and leaves localStorage byte-identical (task stays in its column with its assignee); the stubbed clipboard receives exactly the expected markdown (compared against `formatTaskAsPrompt(SEED_TASKS…)`); the success toast shows the right microcopy with role/aria-live/pointer-events and auto-dismisses; a rejected `writeText` falls through to `execCommand('copy')` which copies the full markdown with the temp textarea removed afterwards; when both methods fail the failure toast appears and the manual-copy dialog exposes the full markdown in a read-only textarea and closes cleanly; the button is focusable and Enter/Space keydowns on it never open the modal; M4 status moves, M7 handoff + toast, M6/M8 badges and tints, and the M5 modal with the M9 AI Context section all still work; zero console errors.
+
+**Known limitations / manual verification still needed**
+
+- Headless browsers have no reliable real clipboard, so the tests stub `navigator.clipboard.writeText` / `document.execCommand` on the page (documented in the test header) — the real-clipboard path is the exact code a user's browser runs, but a quick human pass with a real Ctrl+V is still worthwhile.
+- The `execCommand` fallback is deprecated but still present in current Edge/Chrome; if a future browser removes it, the failure path simply degrades to the manual-copy dialog, which the tests already cover.
+- `promptUtils.ts` imports `taskUtils.ts` with an explicit `.ts` extension (required by Node's native type-stripping runner; permitted by `allowImportingTsExtensions` + Vite) — worth noting for future util modules that get imported from tests.
+
+**Deliberately not implemented in M10** — M11 Anchor Board (Presentation/Demo/Report/Documentation slots), M12 secret sauce, drag-and-drop.

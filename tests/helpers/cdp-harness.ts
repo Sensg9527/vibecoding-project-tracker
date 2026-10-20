@@ -313,6 +313,20 @@ export class BrowserSession {
     );
   }
 
+  /** M10: the "Copy as Prompt Context" button on a specific card (scripted click — the standard pattern). */
+  async clickCopyButton(title: string): Promise<boolean> {
+    return this.eval(
+      `(() => {
+        const card = [...document.querySelectorAll('article')].find(a => a.textContent.includes(${JSON.stringify(title)}));
+        if (!card) return false;
+        const b = card.querySelector('button[data-action="copy-prompt"]');
+        if (!b) return false;
+        b.click();
+        return true;
+      })()`
+    );
+  }
+
   /** M7: the "Hand off to" dropdown on a specific card. */
   async setCardHandoff(title: string, assignee: string): Promise<boolean> {
     return this.eval(

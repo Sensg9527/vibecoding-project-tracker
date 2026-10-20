@@ -11,6 +11,8 @@ interface TaskCardProps {
   onStatusChange: (id: string, status: TaskStatus) => void;
   onAssigneeChange: (id: string, assignee: string) => void;
   onOpen: (task: Task) => void;
+  /** M10: generate the markdown prompt for this task and copy it. */
+  onCopyPrompt: (task: Task) => void;
 }
 
 /** M6 tag-style — a small sparkle for features. */
@@ -90,8 +92,10 @@ const DUE_META: Record<DueState, { label: string; bg: string; chip: string } | n
  * M7 task-owner adds the avatar + name and the "Hand off to" dropdown —
  * both selects stop propagation so card interactions never open the modal.
  * M8 due-tint adds the urgency background tint + label chip.
+ * M10 copy-prompt adds the "Copy as Prompt Context" button (stops propagation
+ * like the selects — copying never opens the modal or changes the task).
  */
-function TaskCard({ task, today, onStatusChange, onAssigneeChange, onOpen }: TaskCardProps) {
+function TaskCard({ task, today, onStatusChange, onAssigneeChange, onOpen, onCopyPrompt }: TaskCardProps) {
   const handleOpen = () => onOpen(task);
   const meta = TYPE_META[task.type];
   const dueState = getDueState(task, today);
@@ -181,6 +185,24 @@ function TaskCard({ task, today, onStatusChange, onAssigneeChange, onOpen }: Tas
         {task.dueDate && (
           <span className="shrink-0 text-xs text-text-muted">Due {task.dueDate}</span>
         )}
+      </div>
+      {/* M10 copy-prompt: one click turns the task + saved context into a
+          reusable markdown prompt. stopPropagation (same pattern as the two
+          selects) so copying never opens the modal or changes the task. */}
+      <div className="mt-2 border-t border-slate-200/70 pt-2">
+        <button
+          type="button"
+          data-action="copy-prompt"
+          onClick={(e) => {
+            e.stopPropagation();
+            onCopyPrompt(task);
+          }}
+          onKeyDown={(e) => e.stopPropagation()}
+          aria-label={`Copy "${task.title}" as prompt context`}
+          className="w-full rounded border border-slate-300 px-2 py-1 text-xs text-text-primary hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
+        >
+          Copy as Prompt Context
+        </button>
       </div>
     </article>
   );

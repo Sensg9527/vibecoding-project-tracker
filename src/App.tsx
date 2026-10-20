@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import BoardColumn from './components/BoardColumn';
+import ManualCopyDialog from './components/ManualCopyDialog';
 import TaskModal from './components/TaskModal';
 import TeamWorkload from './components/TeamWorkload';
 import Toast from './components/Toast';
@@ -7,7 +8,9 @@ import { STAGES } from './data/constants';
 import { SEED_TASKS } from './data/seedTasks';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import type { ModalState, Task, TaskFormValues, TaskStatus } from './types/task';
+import { copyTextToClipboard } from './utils/clipboardUtils';
 import { sameLocalDay } from './utils/dueDateUtils';
+import { formatTaskAsPrompt } from './utils/promptUtils';
 import { localTodayISO, makeId } from './utils/taskUtils';
 
 /**
@@ -20,7 +23,7 @@ import { localTodayISO, makeId } from './utils/taskUtils';
  *   - M7  task-owner    : ✅ avatar + name on every card, "Hand off to" dropdown, toast, workload strip.
  *   - M8  due-tint      : ✅ urgency tints + labels by due date (utils/dueDateUtils).
  *   - M9  context       : ✅ AI Context section on the modal (markdown, AI Tool, auto timestamp).
- *   - M10 copy-prompt   : a "Copy as Prompt Context" button that serializes the task + context.
+ *   - M10 copy-prompt   : ✅ "Copy as Prompt Context" button + markdown serialization + clipboard.
  *   - M11 anchors       : the Anchor Board above the Kanban.
  *   - M12 secret-sauce  : the one open-ended thing that makes your tracker yours.
  *
@@ -74,6 +77,26 @@ export default function App() {
 
   // TODO M11 anchors:
   //   const [anchors, setAnchors] = useLocalStorage<Anchor[]>('vibetracker.anchors', [...]);
+
+  // M10 copy-prompt: fallback dialog state — shown only when both clipboard
+  // methods failed, so the markdown can still be copied by hand.
+  const [manualCopy, setManualCopy] = useState<{ text: string } | null>(null);
+
+  /**
+   * M10: serialize the task into a markdown prompt and copy it. The task is
+   * never modified. Success/failure toasts reuse the M7 Toast; a total
+   * clipboard failure also opens the manual-copy dialog.
+   */
+  const handleCopyPrompt = async (task: Task) => {
+    const markdown = formatTaskAsPrompt(task);
+    const copied = await copyTextToClipboard(markdown);
+    if (copied) {
+      showToast('Context copied — ready to paste.');
+    } else {
+      showToast("Couldn't copy automatically. Select the text to copy manually.");
+      setManualCopy({ text: markdown });
+    }
+  };
 
   /** Change a task's status; every other field is preserved. localStorage saves automatically. */
   const handleStatusChange = (id: string, status: TaskStatus) => {
@@ -160,6 +183,7 @@ export default function App() {
             onStatusChange={handleStatusChange}
             onAssigneeChange={handleAssigneeChange}
             onOpenTask={handleOpenTask}
+            onCopyPrompt={handleCopyPrompt}
             onAddTask={stage.id === 'todo' ? handleAddTask : undefined}
           />
         ))}
@@ -174,6 +198,8 @@ export default function App() {
           onClose={() => setModal(null)}
         />
       )}
+
+      {manualCopy && <ManualCopyDialog text={manualCopy.text} onClose={() => setManualCopy(null)} />}
 
       {toast && <Toast key={toast.key} text={toast.text} />}
     </div>

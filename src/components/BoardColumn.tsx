@@ -10,12 +10,13 @@ interface BoardColumnProps {
   onStatusChange: (id: string, status: TaskStatus) => void;
   onAssigneeChange: (id: string, assignee: string) => void;
   onOpenTask: (task: Task) => void;
+  onCopyPrompt: (task: Task) => void;
   /** Only the To Do column gets the "+ Task" button (M5). */
   onAddTask?: () => void;
 }
 
 /** One Kanban column: heading, optional "+ Task" button, task count, and the matching cards. */
-function BoardColumn({ stage, tasks, today, onStatusChange, onAssigneeChange, onOpenTask, onAddTask }: BoardColumnProps) {
+function BoardColumn({ stage, tasks, today, onStatusChange, onAssigneeChange, onOpenTask, onCopyPrompt, onAddTask }: BoardColumnProps) {
   return (
     <section aria-label={`${stage.label} column`} className="flex min-h-64 flex-col">
       <header className="mb-2 flex items-center justify-between gap-2">
@@ -54,6 +55,7 @@ function BoardColumn({ stage, tasks, today, onStatusChange, onAssigneeChange, on
               onStatusChange={onStatusChange}
               onAssigneeChange={onAssigneeChange}
               onOpen={onOpenTask}
+              onCopyPrompt={onCopyPrompt}
             />
           ))
         )}

@@ -1,6 +1,6 @@
 # Project Status — quick context recovery
 
-**Last updated:** 2026-10-20 (end of M9 `context`)
+**Last updated:** 2026-10-20 (end of M10 `copy-prompt`)
 **Purpose:** read this first after a context compaction or fresh session. Details live in `MILESTONE_PROGRESS.md`; requirements in `PRD.md`; visual rules in `DESIGN.md`.
 
 ## What this project is
@@ -26,24 +26,24 @@ Vibecoding Project Tracker — an individual UXD Vibecoding Hackathon 2026 proje
 | 7 | `task-owner` | ✅ avatar + name on cards, "Hand off to" dropdown, toast, workload strip |
 | 8 | `due-tint` | ✅ urgency tints + SAFE/DUE SOON/OVERDUE/DONE chips (dueDateUtils) |
 | 9 | `context` | ✅ AI Context section on modal: Markdown textarea + AI Tool dropdown + auto `contextUpdatedAt` + last-updated hint |
-| 10 | `copy-prompt` | ⬜ **next**: "Copy as Prompt Context" → serialised markdown to clipboard |
-| 11 | `anchors` | ⬜ Anchor Board above Kanban (Presentation/Demo/Report/Documentation) |
+| 10 | `copy-prompt` | ✅ "Copy as Prompt Context" button on every card → markdown prompt to clipboard (Clipboard API + execCommand fallback + manual-copy dialog) |
+| 11 | `anchors` | ⬜ **next**: Anchor Board above Kanban (Presentation/Demo/Report/Documentation) |
 | 12 | `secret-sauce` | ⬜ open-ended |
 | 13 | `pitch-ready` | ⬜ |
 
 ## Codebase layout (post-M6 refactor)
 
-- `src/App.tsx` — task + modal state, CRUD handlers, handoff + toast (M7), "today" clock for M8 tints, M9 `contextUpdatedAt` computation in `handleSaveTask`, layout (slim).
-- `src/components/` — `TaskCard.tsx` (M6 type styling, M7 owner + handoff, M8 due tints/chips), `BoardColumn.tsx`, `TaskModal.tsx` (M9 AI Context section), `Toast.tsx` (M7), `TeamWorkload.tsx` (M7, optional).
+- `src/App.tsx` — task + modal state, CRUD handlers, handoff + toast (M7), "today" clock for M8 tints, M9 `contextUpdatedAt` computation in `handleSaveTask`, M10 `handleCopyPrompt` + manual-copy dialog state, layout (slim).
+- `src/components/` — `TaskCard.tsx` (M6 type styling, M7 owner + handoff, M8 due tints/chips, M10 copy button), `BoardColumn.tsx`, `TaskModal.tsx` (M9 AI Context section), `ManualCopyDialog.tsx` (M10 fallback), `Toast.tsx` (M7), `TeamWorkload.tsx` (M7, optional).
 - `src/types/task.ts` — `Task`, `Anchor`, `TaskType`, `TaskStatus`, `TaskFormValues` (M9: + `context`, `contextTool`), `ModalState`. The locked `Task` model is unchanged.
 - `src/hooks/useLocalStorage.ts` — generic hook; stored value wins over seeds.
 - `src/data/` — `constants.ts` (STAGES, TEAM, `AI_TOOLS` M9), `seedTasks.ts`.
-- `src/utils/taskUtils.ts` — `makeId()`, `localTodayISO()`, `initialsOf()` (M7), `formatLocalTimestamp()` (M9); `src/utils/dueDateUtils.ts` — `getDueState()` etc. (M8).
+- `src/utils/taskUtils.ts` — `makeId()`, `localTodayISO()`, `initialsOf()` (M7), `formatLocalTimestamp()` (M9); `src/utils/dueDateUtils.ts` — `getDueState()` etc. (M8); `src/utils/promptUtils.ts` — `formatTaskAsPrompt()` (M10); `src/utils/clipboardUtils.ts` — `copyTextToClipboard()` with execCommand fallback (M10).
 - `tests/` — permanent browser test suite (see below).
 
 ## Testing
 
-- `npm test` → `tests/run.mjs`: starts an isolated Vite dev server on **:5199**, then Node's built-in test runner (`node --test`, sequential) over the 8 `tests/*.test.ts` files. **85 tests, all passing** as of M9, run twice.
+- `npm test` → `tests/run.mjs`: starts an isolated Vite dev server on **:5199**, then Node's built-in test runner (`node --test`, sequential) over the 9 `tests/*.test.ts` files. **104 tests, all passing** as of M10, run twice.
 - Tests drive **headless Edge/Chrome via CDP** (`tests/helpers/cdp-harness.ts`, Node built-ins only, no test framework dependency). Fresh temp browser profile per file ⇒ isolated localStorage; your real browser data is never touched. Requires Edge/Chrome installed (`EDGE_PATH` overridable).
 - Tests run via Node type-stripping — no TS parameter properties/enums in `tests/` (strip-only mode). `tsc` includes only `src`, so tests aren't typechecked (deliberate).
 - Quirks learned (do not re-litigate):
@@ -58,6 +58,9 @@ Vibecoding Project Tracker — an individual UXD Vibecoding Hackathon 2026 proje
   - M9: React-controlled `<textarea>` is set via `setTextareaValue` (HTMLTextAreaElement prototype setter + `input`/`change`); multiline markdown is compared byte-for-byte in localStorage. The AI Tool select is driven with the existing `setSelect` (`''` = None, stored as `null`).
   - M9 timestamp tests read `contextUpdatedAt` from localStorage and compare with `formatLocalTimestamp` computed in Node (same machine ⇒ same timezone) — never assert absolute clock values.
   - Badge/chip text is uppercased by CSS — page-side expressions must call `.toUpperCase()` on `textContent` (first M9 run caught this in its own smoke test; the app was fine).
+  - M10 clipboard paths are stubbed on the page (`navigator.clipboard.writeText` / `document.execCommand` — headless has no reliable real clipboard); the harness has a `clickCopyButton(title)` helper. Fallback success is observed via a stubbed `execCommand` reading the temp textarea's value.
+  - M10: util modules imported by tests must use **explicit `.ts` extensions** in their own imports (Node's type-stripping runner doesn't resolve bare paths; Vite + `allowImportingTsExtensions` accept both). `promptUtils.ts` imports `./taskUtils.ts` for this reason — keep the comment if you refactor it.
+  - Never run `node --test tests/foo.test.ts` standalone without a dev server — `tests/run.mjs` starts :5199 for a reason; a bare run hangs the browser nav until the 30 s waitFor timeout.
 
 ## Known limitations / pending manual checks
 
@@ -66,4 +69,4 @@ Vibecoding Project Tracker — an individual UXD Vibecoding Hackathon 2026 proje
 
 ## Next action
 
-Wait for the user's M10 (`copy-prompt`) prompt — a "Copy as Prompt Context" button that serialises the task + M9 context to markdown and copies it to the clipboard (DESIGN.md §5 toast: "Context copied — ready to paste."). Do not implement the M11 Anchor Board yet. Update this file's "Last updated" + milestone table after each milestone.
+Wait for the user's M11 (`anchors`) prompt — the Deliverable Anchor Board above the Kanban with four pinned slots (Presentation / Demo / Report / Documentation, per the locked `Anchor` model in `src/types/task.ts`, localStorage key suggestion `vibetracker.anchors`). Do not implement M12/M13 yet. Update this file's "Last updated" + milestone table after each milestone.
