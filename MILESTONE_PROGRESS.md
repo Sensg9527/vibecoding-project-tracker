@@ -14,7 +14,8 @@ Records only what has been verified. Git operations (commits, tags, pushes) are 
 | 6 | `tag-style` | ✅ Implemented · automated browser tests passed | See below. |
 | 7 | `task-owner` | ✅ Implemented · automated browser tests passed | See below. |
 | 8 | `due-tint` | ✅ Implemented · automated browser tests passed | See below. |
-| 9–13 | — | ⬜ Not started | |
+| 9 | `context` | ✅ Implemented · automated browser tests passed | See below. |
+| 10–13 | — | ⬜ Not started | |
 
 ## M4 `data-model` — 2026-10-20
 
@@ -217,3 +218,42 @@ Records only what has been verified. Git operations (commits, tags, pushes) are 
 - Visual contrast of the tint + chips is functional (computed styles asserted); a quick human pass is still worthwhile for taste (e.g. chip saturation at 10 px).
 
 **Deliberately not implemented in M8** — M9 context editor, M10 copy-prompt, M11 anchor board, M12 secret sauce, drag-and-drop.
+
+## M9 `context` — 2026-10-20
+
+**What was built**
+
+- **AI Context section on the modal:** the M5 create/edit dialog gains a clearly labelled **AI Context** section (heading + top border divider) with a multiline **Context (Markdown)** textarea (monospace, resizable, 7 rows) and an **AI Tool** dropdown. Placeholder guidance mentions notes, prompts, decisions, errors and next steps, and that Markdown works (headings, lists, code fences). No editor library — a plain textarea preserves Markdown syntax.
+- **AI Tool dropdown:** exactly `None, Claude, ChatGPT, Cursor, Lovable, Replit, Other` (`AI_TOOLS` in `src/data/constants.ts`). `None` is stored as `null` on the model; the other values are stored as their literal strings.
+- **Persistence:** `context` is saved verbatim — line breaks, blank lines and code fences byte-for-byte (no trimming, unlike `description`). Reopening a task pre-fills both the textarea and the dropdown; everything survives refresh through the existing `useLocalStorage` hook. Legacy (pre-M9) tasks with `''`/`null`/`null` open with an empty textarea, `None`, and "No context saved yet." — and unrelated edits never invent a timestamp for them.
+- **Automatic `contextUpdatedAt`:** computed in `App.handleSaveTask`, never typed by the user. On edit, the timestamp is refreshed only when `context` or `contextTool` changed vs. the stored task — title/status/assignee/due edits leave it untouched. On create, a task with no context text and no tool keeps `null`; any context or tool sets `new Date().toISOString()`. Opening without saving never writes anything, so the timestamp is preserved.
+- **Last-updated hint:** inside the AI Context section, a subtle `text-xs text-text-muted` line shows `Context last updated: 20 Oct 2026, 14:30` (stored ISO rendered in the user's local timezone via `formatLocalTimestamp` in `taskUtils` — manual month names, locale-independent) or `No context saved yet.` when the timestamp is null.
+- **M4–M8 preserved:** no changes to the card, board, status/handoff selects, toast, due tints, focus trap or any existing modal field; the two new controls are automatically part of the existing Tab focus trap (the trap selector already includes `textarea` and `select`).
+
+**Files created / modified**
+
+- `src/components/TaskModal.tsx` — AI Context section, `context`/`contextTool` state, pre-fill, hint.
+- `src/App.tsx` — `handleSaveTask` computes `contextUpdatedAt` (change detection on edit; null unless context/tool present on create); M9 header comment.
+- `src/types/task.ts` — `TaskFormValues` gains `context` + `contextTool` (the locked `Task` model is unchanged — its M9 fields were already reserved).
+- `src/data/constants.ts` — `AI_TOOLS` (None + six tools).
+- `src/utils/taskUtils.ts` — `formatLocalTimestamp(iso)`.
+- `tests/helpers/cdp-harness.ts` — new `setTextareaValue` helper (React-controlled `<textarea>` via native setter + input/change events).
+- `tests/task-context.test.ts` — new (2 pure unit tests + 15 browser tests).
+- `tests/run.mjs` — registered `tests/task-context.test.ts`.
+- `MILESTONE_PROGRESS.md` — this file.
+
+**Tests performed**
+
+- `npm run typecheck` — passed, no errors.
+- `npm run build` — passed (Vite 5.4.21, 41 modules, ~945 ms).
+- `npm test` — **85/85 passed, run twice to confirm repeatability** (68 existing + 17 new; the first run caught a bug in the new smoke test's own assertion — the FEATURE/BUG badge text is uppercased by CSS, so `textContent` needs `.toUpperCase()`, exactly as the M6 tests already do — the app itself was fine). New coverage:
+  - *Unit:* `formatLocalTimestamp` renders `'20 Oct 2026, 14:30'` from a local 14:30 clock; null/empty/malformed input returns null.
+  - *Browser:* the create modal has an AI Context section (heading, `Context (Markdown)` label, textarea, guidance placeholder, "No context saved yet." hint); the AI Tool dropdown offers exactly None/Claude/ChatGPT/Cursor/Lovable/Replit/Other in order; creating a task with multiline markdown + Claude saves the context byte-for-byte, the tool, and a valid "now" ISO timestamp; reopening pre-fills context, tool and a locally formatted last-updated hint; opening without saving preserves the timestamp; editing context preserves multiline Markdown exactly (blank lines + code fences); context and tool survive a refresh; tool changes persist and re-pre-fill; `None` stores `null`; context changes refresh `contextUpdatedAt`; tool changes refresh it; title-only edits leave it untouched; a new task with no context/tool keeps `null` and shows "No context saved yet."; legacy seed tasks stay compatible and unrelated edits never create a timestamp; M4 status moves, M6 BUG badge, M8 due state/chip and M7 handoff + toast still work; zero console errors.
+
+**Known limitations / manual verification still needed**
+
+- As with the other React-controlled fields, the textarea and tool select are driven in tests via the native setter + event trick (documented in the test header) — a quick human pass on the AI Context section's visual layout is still worthwhile.
+- The timestamp comparison tests use `notEqual` plus a monotonicity check; two saves within the same millisecond are theoretically possible but never occur across real CDP round-trips.
+- The last-updated hint shows the *saved* timestamp; while the modal is open with unsaved context edits it still shows the previous save (by design — the timestamp only changes on save).
+
+**Deliberately not implemented in M9** — M10 "Copy as Prompt Context" button, M11 anchor board, M12 secret sauce, drag-and-drop.

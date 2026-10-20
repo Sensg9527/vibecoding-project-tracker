@@ -23,6 +23,7 @@ const TEST_FILES = [
   'tests/modal-accessibility.test.ts',
   'tests/task-owner.test.ts',
   'tests/due-tint.test.ts',
+  'tests/task-context.test.ts',
 ];
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));

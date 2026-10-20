@@ -22,10 +22,10 @@ export interface Task {
   dueDate: string | null;        // ISO date 'YYYY-MM-DD'
   createdDate: string;           // ISO date 'YYYY-MM-DD'
 
-  // M9 context — curated briefing for the next AI / reviewer.
+  // M9 context — curated markdown briefing for the next AI / reviewer.
   context: string;
   contextTool: string | null;    // 'Claude' | 'ChatGPT' | 'Cursor' | 'Lovable' | 'Replit' | 'Other'
-  contextUpdatedAt: string | null; // ISO timestamp set automatically on save
+  contextUpdatedAt: string | null; // ISO timestamp, set automatically by App on save
 }
 
 /** One of four pinned deliverable slots. TODO M11 anchors. */
@@ -35,7 +35,11 @@ export interface Anchor {
   url: string | null;            // the link the team pastes in
 }
 
-/** The values the task modal collects. Model fields (id, createdDate, context*) are handled by App. */
+/**
+ * The values the task modal collects. Model fields (id, createdDate) are
+ * handled by App; `context*` are collected here and `contextUpdatedAt` is
+ * computed by App on save (M9).
+ */
 export interface TaskFormValues {
   title: string;
   description: string;
@@ -43,6 +47,8 @@ export interface TaskFormValues {
   status: TaskStatus;
   assignee: string;
   dueDate: string | null;
+  context: string;
+  contextTool: string | null;
 }
 
 /** Modal state: closed (null), create mode (task null + initialStatus), or edit mode (task set). */

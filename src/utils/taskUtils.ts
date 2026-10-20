@@ -25,3 +25,18 @@ export function initialsOf(name: string): string {
     .map((w) => w[0]!.toUpperCase())
     .join('');
 }
+
+const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/**
+ * M9 context — a stored ISO timestamp as a friendly local-time string,
+ * e.g. '20 Oct 2026, 14:30'. `null` for null/empty/malformed input.
+ * Manual formatting keeps the output identical across locales.
+ */
+export function formatLocalTimestamp(iso: string | null): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getDate()} ${MONTH_ABBR[d.getMonth()]} ${d.getFullYear()}, ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}

@@ -268,6 +268,21 @@ export class BrowserSession {
     );
   }
 
+  /** M9: set a React-controlled <textarea> through the native setter + input/change events (line breaks preserved). */
+  async setTextareaValue(selector: string, value: string): Promise<boolean> {
+    return this.eval(
+      `(() => {
+        const el = document.querySelector(${JSON.stringify(selector)});
+        if (!el) return false;
+        const set = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set;
+        set.call(el, ${JSON.stringify(value)});
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+        return true;
+      })()`
+    );
+  }
+
   /** Set a React-controlled <select> through its native value setter + change event. */
   async setSelect(selector: string, value: string): Promise<boolean> {
     return this.eval(

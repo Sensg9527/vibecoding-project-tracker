@@ -19,7 +19,7 @@ import { localTodayISO, makeId } from './utils/taskUtils';
  *   - M6  tag-style     : ✅ feature vs. bug accent stripes + FEATURE/BUG badges (TaskCard), App split into modules.
  *   - M7  task-owner    : ✅ avatar + name on every card, "Hand off to" dropdown, toast, workload strip.
  *   - M8  due-tint      : ✅ urgency tints + labels by due date (utils/dueDateUtils).
- *   - M9  context       : a curated Context briefing field on the modal.
+ *   - M9  context       : ✅ AI Context section on the modal (markdown, AI Tool, auto timestamp).
  *   - M10 copy-prompt   : a "Copy as Prompt Context" button that serializes the task + context.
  *   - M11 anchors       : the Anchor Board above the Kanban.
  *   - M12 secret-sauce  : the one open-ended thing that makes your tracker yours.
@@ -86,20 +86,36 @@ export default function App() {
     showToast(`Assigned to ${assignee}.`);
   };
 
-  /** M5: save a create/edit — builds the model fields on create, preserves id + createdDate on edit. */
+  /**
+   * M5/M9: save a create/edit — builds the model fields on create, preserves
+   * id + createdDate on edit. M9: `contextUpdatedAt` is set automatically
+   * whenever `context` or `contextTool` changed, and left untouched when only
+   * unrelated fields (title, status, …) changed.
+   */
   const handleSaveTask = (values: TaskFormValues) => {
     if (modal?.task) {
       const id = modal.task.id;
-      setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, ...values } : t)));
+      setTasks((prev) =>
+        prev.map((t) =>
+          t.id === id
+            ? {
+                ...t,
+                ...values,
+                contextUpdatedAt:
+                  values.context !== t.context || values.contextTool !== t.contextTool
+                    ? new Date().toISOString()
+                    : t.contextUpdatedAt,
+              }
+            : t
+        )
+      );
     } else {
+      const hasContext = values.context.trim() !== '' || values.contextTool !== null;
       const task: Task = {
         id: makeId(),
         createdDate: localTodayISO(),
         ...values,
-        // M9 context fields — safe defaults until the context editor lands.
-        context: '',
-        contextTool: null,
-        contextUpdatedAt: null,
+        contextUpdatedAt: hasContext ? new Date().toISOString() : null,
       };
       setTasks((prev) => [...prev, task]);
     }

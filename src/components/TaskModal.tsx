@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, type SyntheticEvent } from 'react';
-import { STAGES, TEAM } from '../data/constants';
+import { AI_TOOLS, STAGES, TEAM } from '../data/constants';
 import type { Task, TaskFormValues, TaskStatus, TaskType } from '../types/task';
+import { formatLocalTimestamp } from '../utils/taskUtils';
 
 interface TaskModalProps {
   task: Task | null; // null = create mode
@@ -21,7 +22,12 @@ function TaskModal({ task, initialStatus, onSave, onDelete, onClose }: TaskModal
   const [status, setStatus] = useState<TaskStatus>(task?.status ?? initialStatus);
   const [assignee, setAssignee] = useState(task?.assignee ?? TEAM[0]);
   const [dueDate, setDueDate] = useState(task?.dueDate ?? '');
+  // M9 context — pre-filled from the stored task on edit, empty on create.
+  const [context, setContext] = useState(task?.context ?? '');
+  const [contextTool, setContextTool] = useState<string | null>(task?.contextTool ?? null);
   const [error, setError] = useState('');
+  // M9: the last-updated hint reflects the *saved* timestamp (App sets it on save).
+  const contextUpdatedLabel = task ? formatLocalTimestamp(task.contextUpdatedAt) : null;
   const dialogRef = useRef<HTMLDivElement>(null);
   // The element focused when the modal opened, restored on close. Captured
   // during render: autoFocus moves focus into the dialog before effects run,
@@ -89,6 +95,9 @@ function TaskModal({ task, initialStatus, onSave, onDelete, onClose }: TaskModal
       status,
       assignee,
       dueDate: dueDate || null,
+      // M9: context is saved verbatim — line breaks included (no trim).
+      context,
+      contextTool,
     });
   };
 
@@ -217,6 +226,45 @@ function TaskModal({ task, initialStatus, onSave, onDelete, onClose }: TaskModal
                 className="w-full rounded border border-slate-300 bg-surface-card px-2 py-1.5 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-brand-primary"
               />
             </div>
+          </div>
+
+          {/* M9 context — curated markdown briefing to hand to the next AI session. */}
+          <div data-context-section className="space-y-3 border-t border-slate-200 pt-4">
+            <h3 className="text-sm font-semibold text-text-primary">AI Context</h3>
+            <div>
+              <label htmlFor="task-context" className="mb-1 block text-xs font-medium text-text-primary">
+                Context (Markdown)
+              </label>
+              <textarea
+                id="task-context"
+                rows={7}
+                value={context}
+                onChange={(e) => setContext(e.target.value)}
+                placeholder={
+                  'Include notes, prompts, decisions, errors and next steps for the next session.\n' +
+                  'Markdown works — e.g. ## Heading, - lists and ```code blocks```.'
+                }
+                className="w-full resize-y rounded border border-slate-300 bg-surface-card px-2.5 py-1.5 font-mono text-xs leading-relaxed text-text-primary focus:outline-none focus:ring-2 focus:ring-brand-primary"
+              />
+            </div>
+            <div>
+              <label htmlFor="task-context-tool" className="mb-1 block text-xs font-medium text-text-primary">AI Tool</label>
+              <select
+                id="task-context-tool"
+                value={contextTool ?? ''}
+                onChange={(e) => setContextTool(e.target.value || null)}
+                className="w-full rounded border border-slate-300 bg-surface-card px-2 py-1.5 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-brand-primary"
+              >
+                {AI_TOOLS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+            <p data-context-updated className="text-xs text-text-muted">
+              {contextUpdatedLabel
+                ? `Context last updated: ${contextUpdatedLabel}`
+                : 'No context saved yet.'}
+            </p>
           </div>
 
           {task ? (
