@@ -33,3 +33,13 @@ export const INITIAL_ANCHORS: Anchor[] = [
   { id: 'report', label: 'Report', url: null },
   { id: 'documentation', label: 'Documentation', url: null },
 ];
+
+// M12 secret-sauce — the demonstration login. Deliberately a plain constant:
+// this is a demo gate, not real authentication. The password is never written
+// to localStorage/sessionStorage — only the session flag below is.
+export const DEMO_USERNAME = 'userdemo';
+export const DEMO_PASSWORD = 'userdemo';
+
+// M12: sessionStorage key for the demo session flag (tab-scoped — survives a
+// refresh, cleared by logout and by closing the tab).
+export const DEMO_SESSION_KEY = 'vibetracker.demoSession';

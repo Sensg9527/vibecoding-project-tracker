@@ -26,6 +26,8 @@ const TEST_FILES = [
   'tests/task-context.test.ts',
   'tests/copy-prompt.test.ts',
   'tests/anchor-board.test.ts',
+  'tests/project-health.test.ts',
+  'tests/demo-login.test.ts',
 ];
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));

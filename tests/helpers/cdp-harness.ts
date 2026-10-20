@@ -19,6 +19,9 @@ export const APP_URL = process.env.TEST_URL ?? 'http://localhost:5199';
 const BOARD_READY =
   `document.title === 'Vibecoding Project Tracker' && document.querySelectorAll('main section').length === 4`;
 
+// M12: the demo login screen replaces the dashboard until a session exists.
+const LOGIN_READY = `!!document.querySelector('[data-login-page]')`;
+
 type Pending = { resolve: (v: unknown) => void; reject: (e: Error) => void };
 
 const BROWSER_CANDIDATES = [
@@ -188,9 +191,45 @@ export class BrowserSession {
     throw new Error(`Timed out waiting for: ${label}`);
   }
 
+  // M12: navigate to the app and enter through the documented demo login
+  // ("Continue as Demo") so board tests reach the Kanban without bypassing
+  // the real login flow. Each session launches with isolated storage, so the
+  // login page always appears first.
   async nav(): Promise<void> {
     await this.send('Page.navigate', { url: APP_URL });
-    await this.waitFor(BOARD_READY, 'board render', 30000);
+    await this.waitFor(LOGIN_READY, 'demo login page', 30000);
+    await this.enterDemo();
+  }
+
+  /** M12: navigate and stop on the login page (demo-login tests drive the form). */
+  async gotoLogin(): Promise<void> {
+    await this.send('Page.navigate', { url: APP_URL });
+    await this.waitFor(LOGIN_READY, 'demo login page', 30000);
+  }
+
+  /** M12: click "Continue as Demo" (the real production path) and wait for the board. */
+  async enterDemo(): Promise<void> {
+    const clicked = await this.eval(
+      `(() => { const b = document.querySelector('button[data-action="continue-demo"]'); if (!b) return false; b.click(); return true; })()`
+    );
+    if (!clicked) throw new Error('Continue as Demo button not found on the login page');
+    await this.waitFor(BOARD_READY, 'board after demo login');
+  }
+
+  /**
+   * M12: fill the login form (React-controlled inputs via the proven native
+   * setter + event trick) and submit the real form — requestSubmit fires the
+   * browser's submit path, which React's onSubmit handles exactly like an
+   * Enter keypress. Callers then waitFor the outcome they expect.
+   */
+  async loginAs(username: string, password: string): Promise<void> {
+    await this.waitFor(`!!document.querySelector('input[data-login-username]')`, 'login form');
+    await this.setInputValue('[data-login-username]', username);
+    await this.setInputValue('[data-login-password]', password);
+    const submitted = await this.eval(
+      `(() => { const f = document.querySelector('[data-login-page] form'); if (!f) return false; f.requestSubmit(); return true; })()`
+    );
+    if (!submitted) throw new Error('login form not found');
   }
 
   async reload(): Promise<void> {
@@ -246,6 +285,13 @@ export class BrowserSession {
     const modifiers = shift ? 8 : 0;
     await this.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', modifiers, key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
     await this.send('Input.dispatchKeyEvent', { type: 'keyUp', modifiers, key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
+  }
+
+  /** M12: a real (trusted) Enter keypress — used for the login form's implicit submission. */
+  async pressEnter(): Promise<void> {
+    await this.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
+    await this.send('Input.dispatchKeyEvent', { type: 'char', text: '\r', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
+    await this.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
   }
 
   async pressCtrlA(): Promise<void> {

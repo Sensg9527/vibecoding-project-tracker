@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import AnchorBoard from './components/AnchorBoard';
 import BoardColumn from './components/BoardColumn';
+import LoginPage from './components/LoginPage';
 import ManualCopyDialog from './components/ManualCopyDialog';
+import ProjectHealth from './components/ProjectHealth';
 import TaskModal from './components/TaskModal';
 import TeamWorkload from './components/TeamWorkload';
 import Toast from './components/Toast';
-import { INITIAL_ANCHORS, STAGES } from './data/constants';
+import { DEMO_SESSION_KEY, INITIAL_ANCHORS, STAGES } from './data/constants';
 import { SEED_TASKS } from './data/seedTasks';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import type { Anchor, ModalState, Task, TaskFormValues, TaskStatus } from './types/task';
@@ -27,14 +29,45 @@ import { localTodayISO, makeId } from './utils/taskUtils';
  *   - M9  context       : ✅ AI Context section on the modal (markdown, AI Tool, auto timestamp).
  *   - M10 copy-prompt   : ✅ "Copy as Prompt Context" button + markdown serialization + clipboard.
  *   - M11 anchors       : ✅ the Deliverable Anchor Board (Presentation / Demo / Report / Documentation).
- *   - M12 secret-sauce  : the one open-ended thing that makes your tracker yours.
+ *   - M12 secret-sauce  : ✅ Project Health dashboard (live, collapsible stats) + demo login (userdemo/userdemo, Continue as Demo).
  *
  * Layout (M6 refactor):
- *   components/ (TaskCard, BoardColumn, TaskModal, AnchorBoard, Toast, TeamWorkload) · types/task
- *   hooks/useLocalStorage · data/ (constants, seedTasks) · utils/ (taskUtils, dueDateUtils, anchorUtils)
+ *   components/ (TaskCard, BoardColumn, TaskModal, AnchorBoard, LoginPage, ProjectHealth, Toast, TeamWorkload) · types/task
+ *   hooks/useLocalStorage · data/ (constants, seedTasks) · utils/ (taskUtils, dueDateUtils, anchorUtils, projectHealthUtils)
  */
 
 export default function App() {
+  // M12 secret-sauce: the demo session flag lives in sessionStorage (tab-scoped
+  // — it survives a refresh but not a closed tab). Only the flag is stored,
+  // never the demo password. null = show the login page.
+  const [demoSession, setDemoSession] = useState<string | null>(() => {
+    try {
+      return window.sessionStorage.getItem(DEMO_SESSION_KEY);
+    } catch {
+      return null;
+    }
+  });
+
+  /** M12: record the demo session (Sign In or Continue as Demo both land here). */
+  const handleDemoLogin = () => {
+    try {
+      window.sessionStorage.setItem(DEMO_SESSION_KEY, 'demo');
+    } catch {
+      /* private-mode storage error — the in-memory state still grants this tab */
+    }
+    setDemoSession('demo');
+  };
+
+  /** M12: end the session — clears only the flag; tasks and anchors are untouched. */
+  const handleLogout = () => {
+    try {
+      window.sessionStorage.removeItem(DEMO_SESSION_KEY);
+    } catch {
+      /* ignore */
+    }
+    setDemoSession(null);
+  };
+
   // Seed data only applies when nothing is stored yet (see useLocalStorage).
   const [tasks, setTasks] = useLocalStorage<Task[]>('vibetracker.tasks', SEED_TASKS);
 
@@ -170,6 +203,13 @@ export default function App() {
   const handleOpenTask = (task: Task) => setModal({ task, initialStatus: task.status });
   const handleAddTask = () => setModal({ task: null, initialStatus: 'todo' });
 
+  // M12: before a demo session exists the login page replaces the dashboard.
+  // All hooks above already ran, so tasks/anchors keep loading underneath —
+  // logging in never resets or reseeds stored data.
+  if (demoSession === null) {
+    return <LoginPage onLogin={handleDemoLogin} />;
+  }
+
   return (
     <div className="min-h-screen bg-surface-page p-6 text-text-primary">
       <header className="mb-6 flex items-end justify-between">
@@ -181,11 +221,25 @@ export default function App() {
             Track tasks, preserve AI context, and keep projects moving.
           </p>
         </div>
-        {/* The "+ Task" button lives in the To Do column header (M5). */}
+        {/* M12: end the demo session without touching any task/anchor data.
+            (The "+ Task" button lives in the To Do column header, M5.) */}
+        <button
+          type="button"
+          data-action="logout"
+          onClick={handleLogout}
+          className="rounded border border-slate-300 px-2.5 py-1 text-xs text-text-primary hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
+        >
+          Log out
+        </button>
       </header>
 
       {/* M11 anchors — the deliverable links pinned above the board. */}
       <AnchorBoard anchors={anchors} onSave={handleAnchorSave} onRemove={handleAnchorRemove} />
+
+      {/* M12 secret-sauce: the live, collapsible Project Health dashboard —
+          computed from the same task state, so every CRUD/status/type/due
+          change updates it immediately. */}
+      <ProjectHealth tasks={tasks} today={today} />
 
       {/* M7 task-owner (optional): active-task counts per demo role. */}
       <TeamWorkload tasks={tasks} />

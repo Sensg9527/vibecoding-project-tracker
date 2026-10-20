@@ -17,7 +17,8 @@ Records only what has been verified. Git operations (commits, tags, pushes) are 
 | 9 | `context` | ✅ Implemented · automated browser tests passed | See below. |
 | 10 | `copy-prompt` | ✅ Implemented · automated browser tests passed | See below. |
 | 11 | `anchors` | ✅ Implemented · automated browser tests passed | See below. |
-| 12–13 | — | ⬜ Not started | |
+| 12 | `secret-sauce` | ✅ Implemented · automated browser tests passed | See below. |
+| 13 | `pitch-ready` | ⬜ Not started | |
 
 ## M4 `data-model` — 2026-10-20
 
@@ -336,3 +337,44 @@ Records only what has been verified. Git operations (commits, tags, pushes) are 
 - Labels can be customised in stored data (normalise keeps them); the UI itself always shows the four locked labels because the seeds carry them.
 
 **Deliberately not implemented in M11** — M12 secret sauce (PRD FR-19, open-ended), M13 pitch readiness, drag-and-drop.
+
+## M12 `secret-sauce` — 2026-10-20
+
+**What was built**
+
+- **Project Health Dashboard** (`src/components/ProjectHealth.tsx`): a compact, collapsible live summary rendered between the Deliverable Anchor Board and the workload strip (above the Kanban). Five stat cards — **Total Tasks, Completed Tasks, Completion Percentage, Overdue Tasks, Active Bugs** — plus an **Overall completion progress bar** whose fill width derives from the percentage. Numbers are always shown as text too (never conveyed by the bar alone). Colour follows DESIGN.md §2: brand-primary for completion, `type-bug` red for overdue/active-bug values, white cards with subtle borders and rounded corners, no chart library. Expanded by default; the toggle button ("Hide Project Health" / "Show Project Health", `aria-expanded` + `aria-controls`) hides only the statistics panel — the Anchor Board, workload strip and Kanban stay visible.
+- **Reusable statistics logic** (`src/utils/projectHealthUtils.ts`): pure `calculateProjectHealth(tasks, today?)` returning `{ total, completed, completionPercentage, overdue, activeBugs }`. Completion is `completed / total` rounded to the nearest whole percent; an empty board yields 0% (no division by zero). Overdue reuses M8's `getDueState` verbatim (no duplicated urgency rules), so Done tasks are excluded automatically; active bugs are `type === 'bug' && status !== 'done'`. No Task-model changes; no second store — the dashboard derives from the same `tasks` state and App's M8 `today` clock, so create/delete/status/type/due-date changes and day rollover all update it immediately.
+- **Demo Login Page** (`src/components/LoginPage.tsx`): a centred white card (DESIGN.md §4/§6) with the brand-primary wordmark, "Welcome back" heading, explanatory subtitle, Username + Password inputs (`type="password"`), a Sign In button and the assessor-access block: **"Demo access: userdemo / userdemo"** plus a **Continue as Demo** button that opens the dashboard through the same session mechanism. Wrong credentials show one generic error ("Invalid username or password." — never revealing which field) with `role="alert"` and keep the dashboard hidden. A disclaimer states this is a demonstration login that does not protect stored data.
+- **Session handling (App):** the `vibetracker.demoSession` flag lives in **sessionStorage** (tab-scoped — survives a refresh, cleared by logout/tab close). The demo password is never stored anywhere; only the flag is written. Before a session exists the login page replaces the dashboard (all hooks still run, so stored tasks/anchors load underneath and are never reset or reseeded). A **Log out** button in the dashboard header clears only the flag and returns to the login screen; tasks and anchors are byte-untouched.
+- **M4–M11 preserved:** the Kanban, CRUD modal, type styling, owner/handoff/toast, due tints, AI Context, copy-prompt and the Anchor Board are unchanged; locked `Task`/`Anchor` models untouched; `vibetracker.tasks` and `vibetracker.anchors` untouched.
+
+**Files created / modified**
+
+- `src/components/ProjectHealth.tsx` — new: collapsible dashboard, stat cards, progress bar.
+- `src/utils/projectHealthUtils.ts` — new: pure `calculateProjectHealth` (imports `./dueDateUtils.ts` with an explicit `.ts` extension per the M10 rule).
+- `src/components/LoginPage.tsx` — new: demo login form, credentials display, Continue as Demo.
+- `src/data/constants.ts` — `DEMO_USERNAME`, `DEMO_PASSWORD`, `DEMO_SESSION_KEY`.
+- `src/App.tsx` — demo session state + `handleDemoLogin`/`handleLogout`, conditional login-page render, Log out button in the header, renders `ProjectHealth`; M12 header comment.
+- `tests/helpers/cdp-harness.ts` — `nav()` now enters through the real "Continue as Demo" login before waiting for the board (no existing test rewritten); new `gotoLogin()`, `enterDemo()`, `loginAs(user, pass)`, `pressEnter()`.
+- `tests/project-health.test.ts` — new (6 pure unit tests + 16 browser tests).
+- `tests/demo-login.test.ts` — new (14 browser tests).
+- `tests/run.mjs` — registered both new test files.
+- `MILESTONE_PROGRESS.md` — this file.
+
+**Tests performed**
+
+- `npm run typecheck` — passed, no errors.
+- `npm run build` — passed (Vite 5.4.21, 49 modules, ~0.9 s).
+- `npm test` — **161/161 passed, run twice to confirm repeatability** (126 existing + 35 new). New coverage:
+  - *Project Health unit (pure Node, fixed clock):* totals/completion/percentage/overdue/active-bug counts; empty list → all zeros with 0%; rounding to the nearest whole percent (1/3 → 33, 1/8 → 13); Done tasks never count as overdue even with past due dates; Done bugs never count as active bugs; overdue follows the supplied `today` (day rollover changes the count).
+  - *Project Health browser (controlled 5-task fixture with dates relative to the execution day):* total = 5 with all five cards, positioned below the Anchor Board and above the Kanban (`compareDocumentPosition`); completed = 2; percentage = 40% shown both in the card and as text beside the bar; empty board shows 0%/zero counts; overdue excludes the Done task with a past due date; active bugs exclude the Done bug; creating a task updates immediately (6 total, 33%); deleting updates immediately (4 total, 25%); a status change updates immediately (3 done, 60%); editing a task type in the modal raises the active-bug count to 2; editing a due date raises overdue to 2; stats survive a refresh byte-identically; the progress bar's `aria-valuenow`/`aria-valuemin`/`aria-valuemax`/fill width track the percentage (40% → 60% after a status move, no reload); collapse hides only the stats (Kanban/anchors/cards all stay, `aria-expanded` + label flip correctly) and re-expanding keeps the numbers; a status move + anchor add/save + copy buttons all still work alongside the dashboard (anchor edits leave `vibetracker.tasks` byte-identical); zero console errors.
+  - *Demo login browser:* the login page renders when no session exists (no board, no flag); username/password inputs exist with labels; the password input is `type="password"`; `userdemo`/`userdemo` opens the board and records only the session flag (sessionStorage holds exactly `[['vibetracker.demoSession','demo']]`, no password in localStorage); wrong password shows exactly "Invalid username or password." with `role="alert"` and grants nothing (flag null, board hidden); a wrong username likewise grants nothing; Continue as Demo opens the board through the same flag; the session survives a refresh in the same tab; Log out returns to the login screen and clears the flag; a login/logout cycle leaves seeded custom tasks and anchors byte-identical in localStorage (the one test-logic fix during development: seeding storage on an already-mounted app requires a re-navigation, because `useLocalStorage` reads only at mount); the demo credentials line shows both `userdemo` values; focus starts on the username, Tab walks username → password → Sign In, and a real Enter keypress on the password field submits the form (trusted CDP key events — the implicit-submission path a real user takes); zero runtime console errors.
+- Regression: all existing M4–M11 files now pass through the login in `nav()`, so the 126 pre-existing tests re-ran green twice against the login-gated app.
+
+**Known limitations / manual verification still needed**
+
+- The login is a demonstration gate, not security — the credentials are printed on the page by design (assessor access). It deliberately does not protect the stored project data.
+- Automated checks are headless; a quick human pass on the login screen and the health dashboard's visual layout (card grid at narrow widths, progress-bar colour) is still worthwhile, as is a real browser tab close/open to watch the sessionStorage flag drop.
+- `loginAs` submits via `requestSubmit()` (the same browser submit path as Enter); the Enter-key test uses trusted CDP key events and passed in both runs.
+
+**Deliberately not implemented in M12** — M13 pitch readiness, drag-and-drop, real authentication/backend.
