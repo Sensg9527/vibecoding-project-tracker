@@ -1,0 +1,58 @@
+import type { Task } from '../types/task';
+
+// Four realistic demo tasks — one per stage — used only on the very first
+// load. Once tasks exist in localStorage, they are never re-inserted.
+export const SEED_TASKS: Task[] = [
+  {
+    id: 'seed-prd-review',
+    title: 'Complete the PRD review',
+    description: 'Fill in the project identity and milestone ownership in PRD.md.',
+    type: 'feature',
+    status: 'done',
+    assignee: 'Solo Developer',
+    dueDate: null,
+    createdDate: '2026-10-18',
+    context: '',
+    contextTool: null,
+    contextUpdatedAt: null,
+  },
+  {
+    id: 'seed-design-tokens',
+    title: 'Design system (DESIGN.md + tokens)',
+    description: 'Pick palette, typography and microcopy, then paste the tokens into tailwind.config.js.',
+    type: 'feature',
+    status: 'review',
+    assignee: 'Demo Reviewer',
+    dueDate: '2026-10-20',
+    createdDate: '2026-10-19',
+    context: '',
+    contextTool: null,
+    contextUpdatedAt: null,
+  },
+  {
+    id: 'seed-token-bug',
+    title: 'Bug: cards ignore the design tokens',
+    description: 'Card colours fall back to default slate instead of the M3 tokens.',
+    type: 'bug',
+    status: 'in-progress',
+    assignee: 'Solo Developer',
+    dueDate: '2026-10-21',
+    createdDate: '2026-10-20',
+    context: '',
+    contextTool: null,
+    contextUpdatedAt: null,
+  },
+  {
+    id: 'seed-crud-modal',
+    title: 'Add the task CRUD modal',
+    description: 'Create, edit and delete tasks through a modal and persist to localStorage.',
+    type: 'feature',
+    status: 'todo',
+    assignee: 'Solo Developer',
+    dueDate: '2026-10-22',
+    createdDate: '2026-10-20',
+    context: '',
+    contextTool: null,
+    contextUpdatedAt: null,
+  },
+];
