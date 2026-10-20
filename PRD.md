@@ -1,6 +1,6 @@
 # Vibecoding Project Tracker — PRD
 
-**Status:** Hackathon starter PRD · review and fill in the **`<TODO>`** sections before you tag `prd-done`.
+**Status:** Reviewed and completed for individual development (M2) · ready to tag `prd-done`.
 
 ---
 
@@ -91,38 +91,43 @@ Four columns, in this order, with these exact labels in the UI:
 
 ## 8. Team
 
-Fill these in before tagging `prd-done`:
+This is an **individual project** — a single developer working solo.
 
 | Slot | Name | GitHub handle |
 |---|---|---|
-| Teammate A | `<TODO>` | `<TODO>` |
-| Teammate B | `<TODO>` | `<TODO>` |
-| Teammate C | `<TODO>` | `<TODO>` |
+| Developer | Solo Developer | `Sensg9527` |
 
-These three names become the **only** allowed values for `Task.assignee`. No auth — just a dropdown.
+The three `Task.assignee` values are **demonstration roles**, not actual teammates. They exist so the M7 `task-owner` handoff feature has someone to hand a task to:
+
+| Assignee value | Demo role |
+|---|---|
+| `Solo Developer` | The developer — default owner of every task. |
+| `Demo Reviewer` | A stand-in teammate for review handoffs (used in the M7 demo). |
+| `Demo Designer` | A stand-in teammate for design handoffs (used in the M7 demo). |
+
+These three values are the **only** allowed values for `Task.assignee`. No auth — just a dropdown.
 
 ## 9. Milestone ownership
 
-Fill in the owner column. Recommended default in **bold**; change if your team has different strengths.
+Every milestone is owned by **Solo Developer** — no division of labour.
 
-| # | Tag | Title | Suggested owner | Final owner |
-|---|---|---|---|---|
-| 3 | `design-done` | Design system + voice (DESIGN.md) | **B** | `<TODO>` |
-| 4 | `data-model` | Task model + board view | **A** | `<TODO>` |
-| 5 | `crud-modal` | Add / edit / delete modal | **A** | `<TODO>` |
-| 6 | `tag-style` | Feature / bug colors | **B** | `<TODO>` |
-| 7 | `task-owner` | Owner indicator + handoff | **A** | `<TODO>` |
-| 8 | `due-tint` | Due-date color tinting | **B** | `<TODO>` |
-| 9 | `context` | Context field on the task modal | **C** | `<TODO>` |
-| 10 | `copy-prompt` | "Copy as Prompt Context" button | **C** | `<TODO>` |
-| 11 | `anchors` | Deliverable Anchor Board | **B** | `<TODO>` |
-| 12 | `secret-sauce` | The one thing that makes it yours | **C / All** | `<TODO>` |
-| 13 | `pitch-ready` | Demo + pitch rehearsal | **All** | `<TODO>` |
+| # | Tag | Title | Final owner |
+|---|---|---|---|
+| 3 | `design-done` | Design system + voice (DESIGN.md) | Solo Developer |
+| 4 | `data-model` | Task model + board view | Solo Developer |
+| 5 | `crud-modal` | Add / edit / delete modal | Solo Developer |
+| 6 | `tag-style` | Feature / bug colors | Solo Developer |
+| 7 | `task-owner` | Owner indicator + handoff | Solo Developer |
+| 8 | `due-tint` | Due-date color tinting | Solo Developer |
+| 9 | `context` | Context field on the task modal | Solo Developer |
+| 10 | `copy-prompt` | "Copy as Prompt Context" button | Solo Developer |
+| 11 | `anchors` | Deliverable Anchor Board | Solo Developer |
+| 12 | `secret-sauce` | The one thing that makes it yours | Solo Developer |
+| 13 | `pitch-ready` | Demo + pitch rehearsal | Solo Developer |
 
+The three tracks now describe feature groupings, not people: Track A (state model and task ownership), Track B (visuals and design), Track C (the differentiator features — M9 + M10 — and usually M12 secret-sauce). With one developer, the tracks run **sequentially**: same milestones, same functionality, one person's time.
 
-Track A owns the state model and task ownership. Track B owns the visuals (and design — M3 runs parallel to M2 so the team starts Phase 3 with the palette already chosen). Track C owns the differentiator features (M9 + M10 — the context field and the Copy-as-Prompt button) and usually leads on M12 secret-sauce. Put your strongest prompter on Track C.
-
-**Dependency note.** M3 (`design-done`) runs **in parallel with M2** — Person B drafts DESIGN.md and pastes the colors into `tailwind.config.js` while the rest of the team reviews the PRD. M6 / M7 / M8 / M11 all depend on M4 + M5 being done first. While Person A builds M4+M5 (first ~60 min of Phase 3), Person C should draft the Markdown template for the "Copy as Prompt Context" output (M10). M12 `secret-sauce` is open-ended — pick whatever makes the tracker uniquely yours; constraint is "must be visible in the demo and must not break anything else."
+**Dependency note.** Originally M3 ran **in parallel with M2** (Person B designing while the team reviewed the PRD). Working solo, M3 simply follows M2. The dependency graph itself is unchanged: M6 / M7 / M8 / M11 all depend on M4 + M5 being done first. While building M4 + M5 (first ~60 min of Phase 3), also draft the Markdown template for the "Copy as Prompt Context" output (M10). M12 `secret-sauce` is open-ended — pick whatever makes the tracker uniquely yours; constraint is "must be visible in the demo and must not break anything else."
 
 ## 10. AI / vibe coding angle
 
@@ -139,13 +144,11 @@ Where AI will **not** save you time:
 
 Keep the Context field of each real task up to date as you work. By the end of the hackathon you should have a handful of curated context blocks — those become part of your Module 5 "Vibe Coding History" deliverable.
 
-## 11. Team identity
+## 11. Project identity
 
-Fill in:
-
-- **Team name:** `<TODO>`
-- **Tagline (one sentence):** `<TODO>`
-- **Tracker URL after deploy:** `<TODO>` (Vercel will give it to you)
+- **Project name:** Vibecoding Project Tracker
+- **Tagline (one sentence):** Track tasks, preserve AI context, and keep projects moving.
+- **Tracker URL after deploy:** Not deployed yet — to be updated after Vercel deployment.
 
 ## 12. Out of scope (do not build)
 

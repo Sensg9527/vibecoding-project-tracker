@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type Dispatch, type SetStateAction } from 'react';
 
 /**
- * Vibecoding Project Tracker — starter scaffold.
+ * Vibecoding Project Tracker — starter scaffold (TypeScript).
  *
  * This file is intentionally almost empty. The boilerplate (Vite, React,
  * Tailwind) is configured for you, plus a few shared constants and a
@@ -21,21 +21,36 @@ import { useState, useEffect } from 'react';
  * Search the file for `TODO M<n>` to find the right hook for each milestone.
  */
 
+export type TaskType = 'feature' | 'bug';
+export type TaskStatus = 'todo' | 'in-progress' | 'review' | 'done';
+
 /**
- * @typedef {Object} Task
- * @property {string} id
- * @property {string} title
- * @property {string} description
- * @property {'feature'|'bug'} type
- * @property {'todo'|'in-progress'|'review'|'done'} status
- * @property {string} assignee
- * @property {string|null} dueDate     ISO 'YYYY-MM-DD'
- * @property {string} createdDate      ISO 'YYYY-MM-DD'
+ * A single vibecoding task. Mirrors PRD §5 — locked, do not change
+ * without team agreement.
  */
+export interface Task {
+  id: string;                    // uuid or timestamp string
+  title: string;
+  description: string;
+  type: TaskType;                // visual color coding
+  status: TaskStatus;
+  assignee: string;              // one of the three teammate names from PRD §8
+  dueDate: string | null;        // ISO date 'YYYY-MM-DD'
+  createdDate: string;           // ISO date 'YYYY-MM-DD'
+
+  // TODO M9 context: add `context`, `contextTool`, `contextUpdatedAt` fields.
+}
+
+/** One of four pinned deliverable slots (M11). */
+export interface Anchor {
+  id: 'presentation' | 'demo' | 'report' | 'documentation';
+  label: string;                 // human-readable
+  url: string | null;            // the link the team pastes in
+}
 
 // The four columns of the board, in render order.
 // Use these IDs everywhere — do not invent new ones.
-export const STAGES = [
+export const STAGES: Array<{ id: TaskStatus; label: string }> = [
   { id: 'todo',        label: 'To Do' },
   { id: 'in-progress', label: 'In Progress' },
   { id: 'review',      label: 'Review' },
@@ -44,19 +59,19 @@ export const STAGES = [
 
 // Replace these placeholders with the three names from PRD §8 before M4.
 // They become the only valid values for `Task.assignee`.
-export const TEAM = ['Teammate A', 'Teammate B', 'Teammate C'];
+export const TEAM: string[] = ['Teammate A', 'Teammate B', 'Teammate C'];
 
 /**
  * A tiny localStorage hook — survives reloads, no library needed.
  *
  * Usage:
- *   const [tasks, setTasks] = useLocalStorage('vibetracker.tasks', []);
+ *   const [tasks, setTasks] = useLocalStorage<Task[]>('vibetracker.tasks', []);
  */
-export function useLocalStorage(key, initialValue) {
-  const [value, setValue] = useState(() => {
+export function useLocalStorage<T>(key: string, initialValue: T): [T, Dispatch<SetStateAction<T>>] {
+  const [value, setValue] = useState<T>(() => {
     try {
       const raw = window.localStorage.getItem(key);
-      return raw != null ? JSON.parse(raw) : initialValue;
+      return raw != null ? (JSON.parse(raw) as T) : initialValue;
     } catch {
       return initialValue;
     }
@@ -75,13 +90,13 @@ export function useLocalStorage(key, initialValue) {
 
 export default function App() {
   // TODO M4 data-model:
-  //   const [tasks, setTasks] = useLocalStorage('vibetracker.tasks', [/* 3-4 seed tasks */]);
+  //   const [tasks, setTasks] = useLocalStorage<Task[]>('vibetracker.tasks', [/* 3-4 seed tasks */]);
   //
   // TODO M5 crud-modal:
-  //   const [editing, setEditing] = useState(null);
+  //   const [editing, setEditing] = useState<Task | null>(null);
   //
   // TODO M11 anchors:
-  //   const [anchors, setAnchors] = useLocalStorage('vibetracker.anchors', [...]);
+  //   const [anchors, setAnchors] = useLocalStorage<Anchor[]>('vibetracker.anchors', [...]);
 
   return (
     <div className="min-h-screen p-6">
