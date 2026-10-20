@@ -12,7 +12,8 @@ Records only what has been verified. Git operations (commits, tags, pushes) are 
 | 4 | `data-model` | ✅ Implemented · awaiting browser verification | See below. |
 | 5 | `crud-modal` | ✅ Implemented · automated browser tests passed | See below. |
 | 6 | `tag-style` | ✅ Implemented · automated browser tests passed | See below. |
-| 7–13 | — | ⬜ Not started | |
+| 7 | `task-owner` | ✅ Implemented · automated browser tests passed | See below. |
+| 8–13 | — | ⬜ Not started | |
 
 ## M4 `data-model` — 2026-10-20
 
@@ -140,3 +141,42 @@ Records only what has been verified. Git operations (commits, tags, pushes) are 
 - A quick human pass in a normal browser is still worthwhile for visual polish of the new badges (spacing, contrast at small sizes).
 
 **Deliberately not implemented in M6** — M7 assignee badges/handoff, M8 due-tint, M9 context editor, M10 copy-prompt, M11 anchor board, M12 secret sauce, drag-and-drop.
+
+## M7 `task-owner` — 2026-10-20
+
+**What was built**
+
+- **Owner on every card:** each `TaskCard` now shows a small circular avatar with the assignee's initials (max two, uppercase — `initialsOf` in `taskUtils`, with a deterministic `?` fallback for missing/blank names) and the assignee's name beside it. The avatar is `aria-hidden` (the adjacent name is the accessible text); no external images or avatar services.
+- **"Hand off to" dropdown:** a second select on each card offering only the three `TEAM` values (`Solo Developer`, `Demo Reviewer`, `Demo Designer`). Selecting one updates `task.assignee` immediately, preserves every other field, and persists through the existing `useLocalStorage` hook. Click/keydown events stop propagation (same pattern as the M4 status dropdown) so the dropdown never opens the edit modal, and the native select keeps full keyboard support.
+- **Toast confirmation:** reassigning via the dropdown shows "Assigned to {name}." (DESIGN.md §5 microcopy) — `role="status"` + `aria-live="polite"`, `pointer-events-none` so it never blocks interactions, auto-dismiss after 2.5 s, and a 200 ms fade per DESIGN.md §7. Timers are cleared on replacement and app unmount.
+- **Modal compatibility (M5 preserved):** the modal's Assignee dropdown is untouched; both interfaces read/write the same task state, so a modal change re-renders the card immediately and reopening the modal shows the card's current owner.
+- **Optional workload strip:** `TeamWorkload` — a compact bar above the board listing each demonstration role with its avatar and the number of active tasks (To Do / In Progress / Review; Done excluded). Rendered as plain divs so board structure and tests are unaffected.
+- **Favicon fix:** a repeat test run surfaced intermittent `404` noise — browsers auto-request `/favicon.ico`, which did not exist. Added a minimal `public/favicon.svg` (a "V" on `brand-primary`, in the spirit of the DESIGN.md §6 wordmark) plus the `<link rel="icon">` tag; the noise is gone and real browsers get a proper tab icon.
+
+**Files created / modified**
+
+- `src/components/TaskCard.tsx` — owner row (avatar + name), "Hand off to" select, `onAssigneeChange` prop.
+- `src/components/BoardColumn.tsx` — passes `onAssigneeChange` through.
+- `src/App.tsx` — `handleAssigneeChange` (only `assignee` changes), toast state + 2.5 s auto-dismiss timer with cleanup, renders `TeamWorkload` and `Toast`.
+- `src/components/Toast.tsx` — new toast component.
+- `src/components/TeamWorkload.tsx` — new workload strip.
+- `src/utils/taskUtils.ts` — `initialsOf(name)`.
+- `src/index.css` — 200 ms `toast-in` keyframes.
+- `index.html` + `public/favicon.svg` — favicon.
+- `tests/helpers/cdp-harness.ts` — `setCardStatus` now targets `select[data-field="status"]` (cards have two selects since M7); new `setCardHandoff` helper.
+- `tests/task-owner.test.ts` — new (14 tests).
+- `tests/run.mjs` — registered `tests/task-owner.test.ts`.
+- `MILESTONE_PROGRESS.md` — this file.
+
+**Tests performed**
+
+- `npm run typecheck` — passed, no errors.
+- `npm run build` — passed (Vite 5.4.21, 40 modules, ~960 ms; `dist/` includes `favicon.svg`).
+- `npm test` — **49/49 passed**, run twice to confirm repeatability (35 existing + 14 new). New M7 coverage: every card shows its owner (avatar + name); initials are correct (SD/DR/…); missing/unexpected names fall back deterministically (`?`, single letters); handoff offers exactly the three TEAM values; handoff never opens the edit modal; owner changes are immediate on the card; toast appears with the right microcopy, `role="status"`, `aria-live="polite"`, `pointer-events: none`, and auto-dismisses; reassignment changes only `assignee` (all other fields byte-identical in localStorage); reassignment survives refresh; modal assignee change updates the card; reopening the modal shows the current assignee; workload counts match non-Done tasks per role and update after a handoff; zero console errors.
+
+**Known limitations / manual verification still needed**
+
+- As with the M4 status dropdown, headless CDP cannot reliably click native `<select>` popups, so both card selects are driven via the native value setter + `change` event in tests — the same proven pattern. A quick human pass on the handoff dropdown's visual layout (avatar contrast, label spacing) is still worthwhile.
+- Toast auto-dismiss is verified functionally (appears, disappears within ~2.5 s); the exact fade is a visual detail.
+
+**Deliberately not implemented in M7** — M8 due-tint, M9 context editor, M10 copy-prompt, M11 anchor board, M12 secret sauce, drag-and-drop.

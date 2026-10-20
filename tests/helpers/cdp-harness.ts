@@ -267,14 +267,32 @@ export class BrowserSession {
     );
   }
 
-  /** Same trick for the status dropdown on a specific card. */
+  /** Same trick for the status dropdown on a specific card (M7 added a second card select). */
   async setCardStatus(title: string, status: string): Promise<boolean> {
     return this.eval(
       `(() => {
-        const sel = [...document.querySelectorAll('article select')].find(s => s.closest('article').textContent.includes(${JSON.stringify(title)}));
+        const card = [...document.querySelectorAll('article')].find(a => a.textContent.includes(${JSON.stringify(title)}));
+        if (!card) return false;
+        const sel = card.querySelector('select[data-field="status"]');
         if (!sel) return false;
         const set = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set;
         set.call(sel, ${JSON.stringify(status)});
+        sel.dispatchEvent(new Event('change', { bubbles: true }));
+        return true;
+      })()`
+    );
+  }
+
+  /** M7: the "Hand off to" dropdown on a specific card. */
+  async setCardHandoff(title: string, assignee: string): Promise<boolean> {
+    return this.eval(
+      `(() => {
+        const card = [...document.querySelectorAll('article')].find(a => a.textContent.includes(${JSON.stringify(title)}));
+        if (!card) return false;
+        const sel = card.querySelector('select[data-field="handoff"]');
+        if (!sel) return false;
+        const set = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set;
+        set.call(sel, ${JSON.stringify(assignee)});
         sel.dispatchEvent(new Event('change', { bubbles: true }));
         return true;
       })()`

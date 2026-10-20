@@ -1,10 +1,12 @@
 import type { ReactElement } from 'react';
-import { STAGES } from '../data/constants';
+import { STAGES, TEAM } from '../data/constants';
 import type { Task, TaskStatus, TaskType } from '../types/task';
+import { initialsOf } from '../utils/taskUtils';
 
 interface TaskCardProps {
   task: Task;
   onStatusChange: (id: string, status: TaskStatus) => void;
+  onAssigneeChange: (id: string, assignee: string) => void;
   onOpen: (task: Task) => void;
 }
 
@@ -68,8 +70,10 @@ const TYPE_META: Record<TaskType, { label: string; stripe: string; badge: string
  * A single task card. Status moves happen through the dropdown (M4);
  * clicking the card (or pressing Enter/Space on it) opens the edit modal (M5).
  * The M6 accent stripe and type badge reflect `task.type`.
+ * M7 task-owner adds the avatar + name and the "Hand off to" dropdown —
+ * both selects stop propagation so card interactions never open the modal.
  */
-function TaskCard({ task, onStatusChange, onOpen }: TaskCardProps) {
+function TaskCard({ task, onStatusChange, onAssigneeChange, onOpen }: TaskCardProps) {
   const handleOpen = () => onOpen(task);
   const meta = TYPE_META[task.type];
 
@@ -99,8 +103,20 @@ function TaskCard({ task, onStatusChange, onOpen }: TaskCardProps) {
         </span>
       </div>
       <p className="mt-1 text-xs leading-relaxed text-text-muted">{task.description}</p>
+      {/* M7 task-owner: who owns the task, visible without opening the modal. */}
       <div className="mt-2 flex items-center justify-between gap-2">
+        <span data-owner className="flex min-w-0 items-center gap-1.5" title={task.assignee}>
+          <span
+            data-owner-initials
+            aria-hidden="true"
+            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-primary/10 text-[10px] font-semibold leading-none text-brand-primary"
+          >
+            {initialsOf(task.assignee)}
+          </span>
+          <span data-owner-name className="truncate text-xs text-text-primary">{task.assignee}</span>
+        </span>
         <select
+          data-field="status"
           value={task.status}
           onChange={(e) => onStatusChange(task.id, e.target.value as TaskStatus)}
           onClick={(e) => e.stopPropagation()}
@@ -112,8 +128,27 @@ function TaskCard({ task, onStatusChange, onOpen }: TaskCardProps) {
             <option key={stage.id} value={stage.id}>{stage.label}</option>
           ))}
         </select>
+      </div>
+      {/* M7 task-owner: reassign ownership without opening the modal. */}
+      <div className="mt-2 flex items-center justify-between gap-2">
+        <label className="flex min-w-0 flex-1 items-center gap-1.5">
+          <span className="shrink-0 text-[10px] uppercase tracking-wide text-text-muted">Hand off to</span>
+          <select
+            data-field="handoff"
+            value={task.assignee}
+            onChange={(e) => onAssigneeChange(task.id, e.target.value)}
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
+            aria-label={`Hand off "${task.title}" to`}
+            className="min-w-0 flex-1 rounded border border-slate-300 bg-surface-card px-1.5 py-0.5 text-xs text-text-primary focus:outline-none focus:ring-2 focus:ring-brand-primary"
+          >
+            {TEAM.map((name) => (
+              <option key={name} value={name}>{name}</option>
+            ))}
+          </select>
+        </label>
         {task.dueDate && (
-          <span className="text-xs text-text-muted">Due {task.dueDate}</span>
+          <span className="shrink-0 text-xs text-text-muted">Due {task.dueDate}</span>
         )}
       </div>
     </article>

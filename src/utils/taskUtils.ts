@@ -12,3 +12,16 @@ export function localTodayISO(): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
+
+/**
+ * M7 task-owner — up to two uppercase initials for the assignee avatar,
+ * e.g. 'Solo Developer' → 'SD'. Missing/blank names get a deterministic '?'.
+ */
+export function initialsOf(name: string): string {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return '?';
+  return words
+    .slice(0, 2)
+    .map((w) => w[0]!.toUpperCase())
+    .join('');
+}

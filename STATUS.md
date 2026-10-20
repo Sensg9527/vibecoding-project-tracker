@@ -1,6 +1,6 @@
 # Project Status — quick context recovery
 
-**Last updated:** 2026-10-20 (end of M6 `tag-style`)
+**Last updated:** 2026-10-20 (end of M7 `task-owner`)
 **Purpose:** read this first after a context compaction or fresh session. Details live in `MILESTONE_PROGRESS.md`; requirements in `PRD.md`; visual rules in `DESIGN.md`.
 
 ## What this project is
@@ -23,8 +23,8 @@ Vibecoding Project Tracker — an individual UXD Vibecoding Hackathon 2026 proje
 | 4 | `data-model` | ✅ board, seeds, status dropdown, localStorage |
 | 5 | `crud-modal` | ✅ create/edit/delete modal, focus trap |
 | 6 | `tag-style` | ✅ feature/bug stripes + labels, code split into modules, permanent test suite |
-| 7 | `task-owner` | ⬜ **next**: assignee badge on cards + "Hand off to..." dropdown (TEAM values only) |
-| 8 | `due-tint` | ⬜ colour cards by due date (due-safe/warning/overdue/neutral tokens) |
+| 7 | `task-owner` | ✅ avatar + name on cards, "Hand off to" dropdown, toast, workload strip |
+| 8 | `due-tint` | ⬜ **next**: colour cards by due date (due-safe/warning/overdue/neutral tokens) |
 | 9 | `context` | ⬜ Context markdown field on modal (`context`, `contextTool`, `contextUpdatedAt` — fields already on the model with safe defaults) |
 | 10 | `copy-prompt` | ⬜ "Copy as Prompt Context" → serialised markdown to clipboard |
 | 11 | `anchors` | ⬜ Anchor Board above Kanban (Presentation/Demo/Report/Documentation) |
@@ -33,23 +33,25 @@ Vibecoding Project Tracker — an individual UXD Vibecoding Hackathon 2026 proje
 
 ## Codebase layout (post-M6 refactor)
 
-- `src/App.tsx` — task + modal state, CRUD handlers, layout (slim).
-- `src/components/` — `TaskCard.tsx` (incl. M6 type styling), `BoardColumn.tsx`, `TaskModal.tsx`.
+- `src/App.tsx` — task + modal state, CRUD handlers, handoff + toast (M7), layout (slim).
+- `src/components/` — `TaskCard.tsx` (M6 type styling, M7 owner + handoff), `BoardColumn.tsx`, `TaskModal.tsx`, `Toast.tsx` (M7), `TeamWorkload.tsx` (M7, optional).
 - `src/types/task.ts` — `Task`, `Anchor`, `TaskType`, `TaskStatus`, `TaskFormValues`, `ModalState`.
 - `src/hooks/useLocalStorage.ts` — generic hook; stored value wins over seeds.
 - `src/data/` — `constants.ts` (STAGES, TEAM), `seedTasks.ts`.
-- `src/utils/taskUtils.ts` — `makeId()`, `localTodayISO()`.
+- `src/utils/taskUtils.ts` — `makeId()`, `localTodayISO()`, `initialsOf()` (M7).
 - `tests/` — permanent browser test suite (see below).
 
 ## Testing
 
-- `npm test` → `tests/run.mjs`: starts an isolated Vite dev server on **:5199**, then Node's built-in test runner (`node --test`, sequential) over the 5 `tests/*.test.ts` files. **35 tests, all passing** as of M6, run twice.
+- `npm test` → `tests/run.mjs`: starts an isolated Vite dev server on **:5199**, then Node's built-in test runner (`node --test`, sequential) over the 6 `tests/*.test.ts` files. **49 tests, all passing** as of M7, run twice.
 - Tests drive **headless Edge/Chrome via CDP** (`tests/helpers/cdp-harness.ts`, Node built-ins only, no test framework dependency). Fresh temp browser profile per file ⇒ isolated localStorage; your real browser data is never touched. Requires Edge/Chrome installed (`EDGE_PATH` overridable).
 - Tests run via Node type-stripping — no TS parameter properties/enums in `tests/` (strip-only mode). `tsc` includes only `src`, so tests aren't typechecked (deliberate).
 - Quirks learned (do not re-litigate):
   - Headless CDP can't reliably activate buttons via synthesised Enter/mouse events; use scripted `el.click()` (fine when dialogs are auto-accepted) or stub `window.confirm` on the page to test the rejection path.
   - Harness auto-accepts `window.confirm` (delete confirmation) by default.
   - React `autoFocus` moves focus before effects run — the modal captures its focus-restore trigger during render (a bug the M6 tests caught; don't "simplify" it back).
+  - Cards have **two selects** since M7 — `setCardStatus` targets `select[data-field="status"]`, `setCardHandoff` targets `select[data-field="handoff"]`; don't go back to "first select in article".
+  - A favicon exists now (`public/favicon.svg`) — removing it re-introduces intermittent `/favicon.ico` 404 console noise in tests.
 
 ## Known limitations / pending manual checks
 
@@ -58,4 +60,4 @@ Vibecoding Project Tracker — an individual UXD Vibecoding Hackathon 2026 proje
 
 ## Next action
 
-Wait for the user's M7 (`task-owner`) prompt. Update this file's "Last updated" + milestone table after each milestone.
+Wait for the user's M8 (`due-tint`) prompt. Update this file's "Last updated" + milestone table after each milestone.

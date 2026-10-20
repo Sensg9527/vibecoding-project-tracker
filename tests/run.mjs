@@ -21,6 +21,7 @@ const TEST_FILES = [
   'tests/task-type-styling.test.ts',
   'tests/persistence.test.ts',
   'tests/modal-accessibility.test.ts',
+  'tests/task-owner.test.ts',
 ];
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
