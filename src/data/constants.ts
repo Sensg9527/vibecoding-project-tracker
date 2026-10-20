@@ -1,4 +1,4 @@
-import type { TaskStatus } from '../types/task';
+import type { Anchor, TaskStatus } from '../types/task';
 
 // The four columns of the board, in render order.
 // Use these IDs everywhere — do not invent new ones.
@@ -23,4 +23,13 @@ export const AI_TOOLS: Array<{ value: string; label: string }> = [
   { value: 'Lovable', label: 'Lovable' },
   { value: 'Replit', label: 'Replit' },
   { value: 'Other', label: 'Other' },
+];
+
+// M11 anchors — the four pinned deliverable slots, in display order.
+// `vibetracker.anchors` stores the live copy; these are only the seeds.
+export const INITIAL_ANCHORS: Anchor[] = [
+  { id: 'presentation', label: 'Presentation', url: null },
+  { id: 'demo', label: 'Demo', url: null },
+  { id: 'report', label: 'Report', url: null },
+  { id: 'documentation', label: 'Documentation', url: null },
 ];

@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
+import AnchorBoard from './components/AnchorBoard';
 import BoardColumn from './components/BoardColumn';
 import ManualCopyDialog from './components/ManualCopyDialog';
 import TaskModal from './components/TaskModal';
 import TeamWorkload from './components/TeamWorkload';
 import Toast from './components/Toast';
-import { STAGES } from './data/constants';
+import { INITIAL_ANCHORS, STAGES } from './data/constants';
 import { SEED_TASKS } from './data/seedTasks';
 import { useLocalStorage } from './hooks/useLocalStorage';
-import type { ModalState, Task, TaskFormValues, TaskStatus } from './types/task';
+import type { Anchor, ModalState, Task, TaskFormValues, TaskStatus } from './types/task';
+import { normalizeAnchors } from './utils/anchorUtils';
 import { copyTextToClipboard } from './utils/clipboardUtils';
 import { sameLocalDay } from './utils/dueDateUtils';
 import { formatTaskAsPrompt } from './utils/promptUtils';
@@ -24,12 +26,12 @@ import { localTodayISO, makeId } from './utils/taskUtils';
  *   - M8  due-tint      : ✅ urgency tints + labels by due date (utils/dueDateUtils).
  *   - M9  context       : ✅ AI Context section on the modal (markdown, AI Tool, auto timestamp).
  *   - M10 copy-prompt   : ✅ "Copy as Prompt Context" button + markdown serialization + clipboard.
- *   - M11 anchors       : the Anchor Board above the Kanban.
+ *   - M11 anchors       : ✅ the Deliverable Anchor Board (Presentation / Demo / Report / Documentation).
  *   - M12 secret-sauce  : the one open-ended thing that makes your tracker yours.
  *
  * Layout (M6 refactor):
- *   components/ (TaskCard, BoardColumn, TaskModal, Toast, TeamWorkload) · types/task
- *   hooks/useLocalStorage · data/ (constants, seedTasks) · utils/ (taskUtils, dueDateUtils)
+ *   components/ (TaskCard, BoardColumn, TaskModal, AnchorBoard, Toast, TeamWorkload) · types/task
+ *   hooks/useLocalStorage · data/ (constants, seedTasks) · utils/ (taskUtils, dueDateUtils, anchorUtils)
  */
 
 export default function App() {
@@ -75,8 +77,22 @@ export default function App() {
     };
   }, []);
 
-  // TODO M11 anchors:
-  //   const [anchors, setAnchors] = useLocalStorage<Anchor[]>('vibetracker.anchors', [...]);
+  // M11 anchors — the four deliverable slots, persisted under their own key
+  // (stored data wins over the seeds). normalizeAnchors repairs incomplete or
+  // hand-edited payloads so exactly the four locked slots always render and
+  // unsafe stored URLs can never become clickable links.
+  const [storedAnchors, setAnchors] = useLocalStorage<Anchor[]>('vibetracker.anchors', INITIAL_ANCHORS);
+  const anchors = normalizeAnchors(storedAnchors);
+
+  /** M11: save/overwrite one slot's URL — every other slot is untouched. */
+  const handleAnchorSave = (id: Anchor['id'], url: string) => {
+    setAnchors((prev) => normalizeAnchors(prev).map((a) => (a.id === id ? { ...a, url } : a)));
+  };
+
+  /** M11: clear one slot's URL (url → null); the slot itself stays pinned. */
+  const handleAnchorRemove = (id: Anchor['id']) => {
+    setAnchors((prev) => normalizeAnchors(prev).map((a) => (a.id === id ? { ...a, url: null } : a)));
+  };
 
   // M10 copy-prompt: fallback dialog state — shown only when both clipboard
   // methods failed, so the markdown can still be copied by hand.
@@ -168,7 +184,8 @@ export default function App() {
         {/* The "+ Task" button lives in the To Do column header (M5). */}
       </header>
 
-      {/* TODO M11 anchors: render the Anchor Board (Presentation / Demo / Report / Documentation) above the board. */}
+      {/* M11 anchors — the deliverable links pinned above the board. */}
+      <AnchorBoard anchors={anchors} onSave={handleAnchorSave} onRemove={handleAnchorRemove} />
 
       {/* M7 task-owner (optional): active-task counts per demo role. */}
       <TeamWorkload tasks={tasks} />

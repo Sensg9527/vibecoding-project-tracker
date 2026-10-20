@@ -25,6 +25,7 @@ const TEST_FILES = [
   'tests/due-tint.test.ts',
   'tests/task-context.test.ts',
   'tests/copy-prompt.test.ts',
+  'tests/anchor-board.test.ts',
 ];
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));

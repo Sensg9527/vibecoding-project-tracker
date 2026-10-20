@@ -327,6 +327,20 @@ export class BrowserSession {
     );
   }
 
+  /** M11: a button inside one anchor slot (add-link | edit-link | save-link | cancel-link | remove-link). */
+  async clickAnchorAction(slotId: string, action: string): Promise<boolean> {
+    return this.eval(
+      `(() => {
+        const slot = document.querySelector('[data-anchor-slot][data-anchor-id=${JSON.stringify(slotId)}]');
+        if (!slot) return false;
+        const b = slot.querySelector('button[data-action=${JSON.stringify(action)}]');
+        if (!b) return false;
+        b.click();
+        return true;
+      })()`
+    );
+  }
+
   /** M7: the "Hand off to" dropdown on a specific card. */
   async setCardHandoff(title: string, assignee: string): Promise<boolean> {
     return this.eval(

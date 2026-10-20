@@ -16,7 +16,8 @@ Records only what has been verified. Git operations (commits, tags, pushes) are 
 | 8 | `due-tint` | ✅ Implemented · automated browser tests passed | See below. |
 | 9 | `context` | ✅ Implemented · automated browser tests passed | See below. |
 | 10 | `copy-prompt` | ✅ Implemented · automated browser tests passed | See below. |
-| 11–13 | — | ⬜ Not started | |
+| 11 | `anchors` | ✅ Implemented · automated browser tests passed | See below. |
+| 12–13 | — | ⬜ Not started | |
 
 ## M4 `data-model` — 2026-10-20
 
@@ -298,3 +299,40 @@ Records only what has been verified. Git operations (commits, tags, pushes) are 
 - `promptUtils.ts` imports `taskUtils.ts` with an explicit `.ts` extension (required by Node's native type-stripping runner; permitted by `allowImportingTsExtensions` + Vite) — worth noting for future util modules that get imported from tests.
 
 **Deliberately not implemented in M10** — M11 Anchor Board (Presentation/Demo/Report/Documentation slots), M12 secret sauce, drag-and-drop.
+
+## M11 `anchors` — 2026-10-20
+
+**What was built**
+
+- **Deliverable Anchor Board** (`src/components/AnchorBoard.tsx`): a compact section above the Kanban (directly under the header, above the workload strip) with exactly four pinned slots — **Presentation, Demo, Report, Documentation** — using the locked `Anchor` interface (id/label/url) unchanged. Each slot is a white card (DESIGN.md §4: subtle 1px border, rounded corners, brand-primary accents) showing a small inline SVG icon (monitor / play / file / book — no icon library, DESIGN.md §7), the deliverable label, and either the saved link or a dashed empty state ("No link yet.") with an **Add Link** button. Slots with a URL show **Edit Link** and **Remove Link**.
+- **Inline editor:** Add/Edit opens a lightweight per-slot inline editor (input + Save Link/Cancel, Enter submits) instead of a modal, so the four slots always stay visible. Editing pre-fills the existing URL; Cancel closes without modifying anything. A `<label>` (sr-only) is associated with the input; errors render as `role="alert"`.
+- **URL validation** (`src/utils/anchorUtils.ts`, pure): `validateAnchorUrl` accepts only valid `http:`/`https:` URLs — `javascript:`, `data:`, `vbscript:`, `file:`, `mailto:`, `ftp:` and any unparseable input are rejected with a clear message ("Only http:// and https:// links are allowed." / "That doesn't look like a valid URL — include the full address, e.g. https://example.com."). The user's input is stored verbatim (after a trim) so **query parameters and fragments are preserved**; the editor stays open on rejection and nothing is written.
+- **Opening links:** saved URLs are real `<a href>` links with `target="_blank"` + `rel="noopener noreferrer"`, `title` = full URL, and CSS truncation for long URLs (the href/text always keep the full destination). Saving never navigates away from the dashboard.
+- **Persistence:** `useLocalStorage<Anchor[]>('vibetracker.anchors', INITIAL_ANCHORS)` (`INITIAL_ANCHORS` in `src/data/constants.ts`) — stored data wins over the seeds, `vibetracker.tasks` is never touched. Editing one anchor never modifies another; removing a link sets `url` to `null` while the slot stays. **Incomplete stored data is handled safely:** `normalizeAnchors` (pure, unit-tested) re-seeds missing slots, drops unknown ids, falls back to default labels, and keeps only stored URLs that pass validation — a hand-edited `javascript:` URL can never become a clickable link.
+- **M4–M10 preserved:** no changes to the Kanban, modal, badges, owner/handoff, due tints, AI Context, copy-prompt or the `Task`/`Anchor` models. Anchor slots are plain `div`s (not `article`s) so the existing `article`-based task selectors in the test suite keep working.
+
+**Files created / modified**
+
+- `src/components/AnchorBoard.tsx` — new: four slots, inline editor, icons, add/edit/save/cancel/remove.
+- `src/utils/anchorUtils.ts` — new: `validateAnchorUrl` + `normalizeAnchors` (pure, Node-unit-tested; imports `./constants.ts` with an explicit `.ts` extension per the M10 rule).
+- `src/data/constants.ts` — `INITIAL_ANCHORS` (the four seed slots).
+- `src/App.tsx` — `vibetracker.anchors` state (normalised on render and on every write), `handleAnchorSave` / `handleAnchorRemove`, renders `AnchorBoard`; M11 header comment.
+- `tests/helpers/cdp-harness.ts` — new `clickAnchorAction(slotId, action)` helper.
+- `tests/anchor-board.test.ts` — new (6 pure unit tests + 16 browser tests).
+- `tests/run.mjs` — registered `tests/anchor-board.test.ts`.
+- `MILESTONE_PROGRESS.md` — this file.
+
+**Tests performed**
+
+- `npm run typecheck` — passed, no errors.
+- `npm run build` — passed (Vite 5.4.21, 46 modules, ~1.4 s).
+- `npm test` — **126/126 passed, run twice to confirm repeatability** (104 existing + 22 new). New coverage:
+  - *Unit (pure Node):* `validateAnchorUrl` accepts http/https (query strings + fragments included) and rejects `javascript:`/`data:`/`vbscript:`/`file:`/`mailto:`/`ftp:` plus malformed input (`''`, whitespace, `not a url`, scheme-less, bare `https://`); `normalizeAnchors` returns the four seeded slots for null/undefined/string/object/number storage, fills missing slots while keeping valid stored labels + URLs, and drops unknown slots, unsafe stored URLs, non-string and blank urls.
+  - *Browser:* exactly four slots render with the correct labels and order, above the Kanban (`compareDocumentPosition` vs `main`), each with an icon; empty anchors show the empty state + Add Link and no link/edit/remove controls; a valid URL saves into its slot (editor closes, link appears, storage updated, dashboard stays rendered); saving one anchor never modifies another (localStorage checked per slot); saved links have the exact `href`, `target="_blank"`, `rel="noopener noreferrer"` and full-URL title/text; an existing URL edits with the editor pre-filled; Cancel preserves the existing URL and leaves empty slots empty (storage byte-identical); Remove Link clears only that slot (empty state returns, all four slots stay, `url: null` stored); URLs persist after refresh; empty URLs persist after refresh; `javascript:` gets the exact http/https-only message with `role="alert"` and malformed inputs keep the editor open and store nothing, while a valid URL then saves cleanly; query parameters and fragments are preserved byte-for-byte in the href and in storage; add/edit/remove leave `vibetracker.tasks` byte-identical; a hand-edited storage payload (blank label, `javascript:` URL, unknown slot id) renders safely after reload with defaults and only the valid URL surviving; M4 status moves, M7 handoff + toast, M6/M8 badges + tints, the M5 modal with the M9 AI Context section and M10 copy buttons all still work; zero console errors.
+
+**Known limitations / manual verification still needed**
+
+- The tests drive the editor input with the native setter + input/change trick (same proven pattern as the other React-controlled fields); clicking the actual saved link in headless would open a real tab, so the target/rel/href attributes are asserted instead. A quick human pass on the anchor board's visual layout (icon contrast, truncation width) and a real click on a saved link are still worthwhile.
+- Labels can be customised in stored data (normalise keeps them); the UI itself always shows the four locked labels because the seeds carry them.
+
+**Deliberately not implemented in M11** — M12 secret sauce (PRD FR-19, open-ended), M13 pitch readiness, drag-and-drop.
