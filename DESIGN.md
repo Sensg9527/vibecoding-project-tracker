@@ -112,5 +112,3 @@ To keep design tight, the following are explicitly not part of `design-done`:
 ---
 
 *DESIGN.md version: hackathon-starter v1 · completed for M3*
-
-..
