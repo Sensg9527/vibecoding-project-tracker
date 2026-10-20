@@ -1,173 +1,45 @@
-# Vibecoding Project Tracker — PRD
+# Vibecoding Project Tracker — Product Requirements Document
 
-**Status:** Reviewed and completed for individual development (M2) · ready to tag `prd-done`.
+**Status:** Milestone 2 revision — Functional and Non-Functional Requirements only (`prd-done`).
 
----
+Individual hackathon project: a single-page Kanban board for vibecoding tasks that preserves the AI prompt context behind each task. Stack: React + TypeScript (Vite) + Tailwind CSS, with client-side persistence via localStorage. Requirements below are derived from the hackathon milestones (M4–M12) and the locked `Task` / `Anchor` data model.
 
-## 1. Problem
+## 1. Functional Requirements
 
-Vibecoding teams have two recurring pains with large projects:
+**MVP** = required in the demo-ready product. The only non-MVP item is FR-19 (M12 Secret Sauce), which is open-ended by design.
 
-1. **They lose track of tasks.** Three teammates, a hundred small things, no shared view. Nothing tells them what state each task is actually in.
-2. **They lose track of prompts.** The AI gave them working code two days ago but no one remembers the prompt that produced it. When they need to iterate, they start from scratch.
-
-A spreadsheet doesn't solve this. A real project tool (Linear, Jira, Notion) is overkill, doesn't know about prompts, and takes hours to set up.
-
-## 2. Target users
-
-- **Primary:** the team members, for the remaining weeks of the summer semester.
-- **Secondary:** future cohorts of vibecoders taking the same class.
-
-We are designing the tool we ourselves will use. The pitch demo is also our first real user test.
-
-## 3. Product overview
-
-A single-page web app with two persistent surfaces:
-
-- A **Kanban board** where vibecoding tasks move through four states.
-- An **Anchor Board** above it that pins the four final-project deliverables (Presentation, Demo, Report, Documentation).
-
-Each task carries the prompt context that produced it, so any teammate can click a button and copy the task + prompt history back into an AI chat to continue work.
-
-## 4. Primary user flow
-
-1. Open the Webapp. The board loads from local storage.
-2. Click "+" to add a task. Fill in title, type, assignee, due date, prompt context.
-3. Move the task across columns as you work.
-4. When stuck, click "Copy as Prompt Context" on a task and paste it into Claude/ChatGPT/Cursor to continue.
-5. Hand off a task to a teammate with one dropdown.
-6. Drop final deliverable links into the Anchor Board as you produce them.
-
-## 5. Data model
-
-Locked. Do not change without team agreement.
-
-```js
-// A single vibecoding task.
-Task = {
-  id: string,                    // uuid or timestamp string
-  title: string,
-  description: string,
-  type: 'feature' | 'bug',       // visual color coding
-  status: 'todo' | 'in-progress' | 'review' | 'done',
-  assignee: string,              // one of the three teammate names from §8
-  dueDate: string | null,        // ISO date 'YYYY-MM-DD'
-  createdDate: string,           // ISO date 'YYYY-MM-DD'
-
-  // Added in later milestones:
-  context: string,               // M9 context — curated briefing for the next AI / teammate
-  contextTool: string | null,    // M9 context — 'Claude' | 'ChatGPT' | 'Cursor' | 'Lovable' | 'Replit' | 'Other'
-  contextUpdatedAt: string|null, // M9 context — ISO timestamp set automatically on save
-}
-
-// One of four pinned deliverable slots.
-Anchor = {
-  id: 'presentation' | 'demo' | 'report' | 'documentation',
-  label: string,                 // human-readable
-  url: string | null,            // the link the team pastes in
-}
-```
-
-## 6. Tech stack
-
-| Layer | Choice | Why |
-|---|---|---|
-| Framework | React (via Vite) | What the scaffold ships with. Don't migrate. |
-| Styling | Tailwind | Already configured. Use utility classes; no separate CSS files. |
-| State | React `useState` + a `useLocalStorage` hook | Simple, no library needed. |
-| Persistence | **localStorage** | Zero infra. Pick this. Do not switch to a backend mid-hackathon. |
-| Deploy | Vercel | One-click deploy from GitHub. |
-
-> **Decision:** localStorage, not a shared backend. If you want a shared backend later, that's M14 — out of scope for the hackathon.
-
-## 7. Stage names
-
-Four columns, in this order, with these exact labels in the UI:
-
-1. **To Do**
-2. **In Progress**
-3. **Review**
-4. **Done**
-
-## 8. Team
-
-This is an **individual project** — a single developer working solo.
-
-| Slot | Name | GitHub handle |
-|---|---|---|
-| Developer | Solo Developer | `Sensg9527` |
-
-The three `Task.assignee` values are **demonstration roles**, not actual teammates. They exist so the M7 `task-owner` handoff feature has someone to hand a task to:
-
-| Assignee value | Demo role |
-|---|---|
-| `Solo Developer` | The developer — default owner of every task. |
-| `Demo Reviewer` | A stand-in teammate for review handoffs (used in the M7 demo). |
-| `Demo Designer` | A stand-in teammate for design handoffs (used in the M7 demo). |
-
-These three values are the **only** allowed values for `Task.assignee`. No auth — just a dropdown.
-
-## 9. Milestone ownership
-
-Every milestone is owned by **Solo Developer** — no division of labour.
-
-| # | Tag | Title | Final owner |
+| ID | Requirement | MVP | Milestone |
 |---|---|---|---|
-| 3 | `design-done` | Design system + voice (DESIGN.md) | Solo Developer |
-| 4 | `data-model` | Task model + board view | Solo Developer |
-| 5 | `crud-modal` | Add / edit / delete modal | Solo Developer |
-| 6 | `tag-style` | Feature / bug colors | Solo Developer |
-| 7 | `task-owner` | Owner indicator + handoff | Solo Developer |
-| 8 | `due-tint` | Due-date color tinting | Solo Developer |
-| 9 | `context` | Context field on the task modal | Solo Developer |
-| 10 | `copy-prompt` | "Copy as Prompt Context" button | Solo Developer |
-| 11 | `anchors` | Deliverable Anchor Board | Solo Developer |
-| 12 | `secret-sauce` | The one thing that makes it yours | Solo Developer |
-| 13 | `pitch-ready` | Demo + pitch rehearsal | Solo Developer |
+| FR-01 | The app renders a Kanban board with exactly four columns, in the order **To Do, In Progress, Review, Done**, using the fixed stage IDs `todo`, `in-progress`, `review`, `done`. | Yes | M4 |
+| FR-02 | Each task is displayed as a card in the column matching its current status. On first load the board shows 3–4 seed tasks, so it is never empty. | Yes | M4 |
+| FR-03 | The user can change a task's status, and the card moves to the corresponding column immediately. | Yes | M4 |
+| FR-04 | Each task stores exactly these fields: `id`, `title`, `description`, `type` (`feature` or `bug`), `status`, `assignee`, `dueDate` (nullable, ISO `YYYY-MM-DD`), `createdDate` (ISO `YYYY-MM-DD`). | Yes | M4 |
+| FR-05 | The user can create a task through a modal that captures title, description, type, assignee and optional due date; the new card appears on the board. | Yes | M5 |
+| FR-06 | The user can edit every field of an existing task through the same modal; saving updates the card on the board. | Yes | M5 |
+| FR-07 | The user can delete a task after an explicit confirmation step; the card is removed from the board. | Yes | M5 |
+| FR-08 | Tasks and anchors persist in browser localStorage and survive a full page refresh without data loss. | Yes | M5 |
+| FR-09 | Feature and bug tasks are visually distinguishable: cards use distinct color tokens per type (accent stripe and icon). | Yes | M6 |
+| FR-10 | Every card displays its assignee as a badge. | Yes | M7 |
+| FR-11 | The user can reassign a task via a "Hand off to..." dropdown. Selectable values are exactly the three demonstration roles: `Solo Developer`, `Demo Reviewer`, `Demo Designer`. | Yes | M7 |
+| FR-12 | Card colors automatically reflect due-date urgency: done tasks are neutral; otherwise **safe** when more than 2 days out, **warning** when less than 24 hours out, **overdue** when past the due date. | Yes | M8 |
+| FR-13 | The task modal provides a Context field that accepts Markdown-formatted text (the curated briefing for the next AI session or reviewer). | Yes | M9 |
+| FR-14 | Saving the context records a `contextUpdatedAt` ISO timestamp automatically; every save refreshes the timestamp. | Yes | M9 |
+| FR-15 | The modal offers an optional AI tool selector with exactly the values `Claude`, `ChatGPT`, `Cursor`, `Lovable`, `Replit`, `Other`. | Yes | M9 |
+| FR-16 | A "Copy as Prompt Context" action serializes the task fields plus the context into a formatted Markdown block and copies it to the clipboard. | Yes | M10 |
+| FR-17 | A Deliverable Anchor Board pinned above the Kanban displays exactly four slots: **Presentation, Demo, Report, Documentation**. | Yes | M11 |
+| FR-18 | Each anchor slot allows adding, editing and saving a link; saved links persist in localStorage. | Yes | M11 |
+| FR-19 | **Secret Sauce:** an open-ended enhancement chosen by the developer in M12. Must be visible in the demo and must not break any other requirement. To be defined — no functionality is specified now. | No | M12 |
 
-The three tracks now describe feature groupings, not people: Track A (state model and task ownership), Track B (visuals and design), Track C (the differentiator features — M9 + M10 — and usually M12 secret-sauce). With one developer, the tracks run **sequentially**: same milestones, same functionality, one person's time.
+## 2. Non-Functional Requirements
 
-**Dependency note.** Originally M3 ran **in parallel with M2** (Person B designing while the team reviewed the PRD). Working solo, M3 simply follows M2. The dependency graph itself is unchanged: M6 / M7 / M8 / M11 all depend on M4 + M5 being done first. While building M4 + M5 (first ~60 min of Phase 3), also draft the Markdown template for the "Copy as Prompt Context" output (M10). M12 `secret-sauce` is open-ended — pick whatever makes the tracker uniquely yours; constraint is "must be visible in the demo and must not break anything else."
-
-## 10. AI / vibe coding angle
-
-Where AI will be heavily used:
-- M4, M5: scaffold the board and the modal from a single prompt each.
-- M9, M10: write the Markdown serialization helper for the Context field.
-- M7: animation polish for the handoff toast.
-
-Where AI will **not** save you time:
-- M2 (this PRD review) — read it yourself.
-- M3 (DESIGN.md) — design taste is yours, not the model's.
-- M12 (secret-sauce) — the whole point is that AI can't predict it.
-- M13 (pitch) — write the script in your own voice.
-
-Keep the Context field of each real task up to date as you work. By the end of the hackathon you should have a handful of curated context blocks — those become part of your Module 5 "Vibe Coding History" deliverable.
-
-## 11. Project identity
-
-- **Project name:** Vibecoding Project Tracker
-- **Tagline (one sentence):** Track tasks, preserve AI context, and keep projects moving.
-- **Tracker URL after deploy:** Not deployed yet — to be updated after Vercel deployment.
-
-## 12. Out of scope (do not build)
-
-- Authentication / accounts.
-- Real GitHub integration.
-- A real backend / shared database.
-- Mobile responsive — desktop only is fine.
-- Multi-team support.
-- Real-time collaboration.
-
-## 13. Definition of done
-
-The hackathon is "done" when all 13 milestone tags are pushed to your repo and visible on the dashboard. The pitch is "done" when:
-
-- The board loads on Vercel without errors.
-- The "Copy as Prompt Context" demo works on stage.
-- 5 min pitch is rehearsed.
-
----
-
-*PRD version: hackathon-starter v1 · maintained by Prof. Dr. Ignacio Alvarez*
-..
+| ID | Requirement | MVP | Verification |
+|---|---|---|---|
+| NFR-01 | **Usability** — A new user can add a task, edit it and move it between columns without instructions. Primary actions ("+", "Copy as Prompt Context", "Hand off to...") use plain-language labels in a single visible area. | Yes | Manual walkthrough: complete the primary flow (add → move → copy) in under 2 minutes. |
+| NFR-02 | **Performance** — All interactions (opening the modal, moving a task, copying the prompt) respond within 200 ms on a board of up to 50 tasks, with no full-page reloads. | Yes | Manual timing check during the demo with the seed dataset. |
+| NFR-03 | **Persistence** — Task and anchor data survives page refreshes and browser restarts via localStorage; no backend involved. | Yes | Refresh and fully restart the browser; verify the board state is unchanged. |
+| NFR-04 | **Compatibility** — The app runs correctly in current desktop versions of Chrome, Edge and Firefox. | Yes | Manual smoke test in each browser: board renders and CRUD works. |
+| NFR-05 | **Reliability** — Normal editing, moving and deleting must never lose or corrupt stored data; localStorage is written on every state change. | Yes | Manual CRUD session followed by a reload integrity check. |
+| NFR-06 | **Accessibility** — Body text meets WCAG AA contrast (≥ 4.5:1); every form control has an associated label; the board and modal are keyboard-operable. | Yes | Contrast check of the design tokens + manual keyboard navigation. |
+| NFR-07 | **Maintainability** — The UI is composed of reusable React components (e.g. Column, TaskCard, TaskModal, AnchorBoard); colors are applied only through the Tailwind design tokens in `tailwind.config.js`. | Yes | Code review against the component list and token usage. |
+| NFR-08 | **Deployability** — The production build completes without errors and the app deploys to Vercel at a public URL that loads without console errors. | Yes | Successful `npm run build` + deployed URL loads cleanly. |
+| NFR-09 | **Simplicity** — No backend, authentication or runtime dependency beyond React, Vite and Tailwind CSS (plus the TypeScript dev toolchain); all data stays client-side. | Yes | `package.json` review. |
