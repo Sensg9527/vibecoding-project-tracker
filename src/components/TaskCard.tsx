@@ -1,10 +1,13 @@
 import type { ReactElement } from 'react';
 import { STAGES, TEAM } from '../data/constants';
 import type { Task, TaskStatus, TaskType } from '../types/task';
+import { getDueState, type DueState } from '../utils/dueDateUtils';
 import { initialsOf } from '../utils/taskUtils';
 
 interface TaskCardProps {
   task: Task;
+  /** App's "current local date" — passed down so urgency tints re-evaluate on day rollover (M8). */
+  today: Date;
   onStatusChange: (id: string, status: TaskStatus) => void;
   onAssigneeChange: (id: string, assignee: string) => void;
   onOpen: (task: Task) => void;
@@ -67,15 +70,32 @@ const TYPE_META: Record<TaskType, { label: string; stripe: string; badge: string
 };
 
 /**
+ * M8 due-tint (DESIGN.md §2): a subtle background tint per urgency state plus
+ * a visible label chip, so colour is never the only signal. 'none' (no due
+ * date) keeps the plain card with no indicator. The M6 accent stripe and the
+ * M7 owner/handoff controls all stay untouched.
+ */
+const DUE_META: Record<DueState, { label: string; bg: string; chip: string } | null> = {
+  safe: { label: 'Safe', bg: 'bg-due-safe', chip: 'border-blue-300 bg-white/80 text-blue-700' },
+  warning: { label: 'Due Soon', bg: 'bg-due-warning', chip: 'border-amber-300 bg-white/80 text-amber-700' },
+  overdue: { label: 'Overdue', bg: 'bg-due-overdue', chip: 'border-red-300 bg-white/80 text-red-700' },
+  neutral: { label: 'Done', bg: 'bg-due-neutral', chip: 'border-slate-300 bg-white/80 text-slate-600' },
+  none: null,
+};
+
+/**
  * A single task card. Status moves happen through the dropdown (M4);
  * clicking the card (or pressing Enter/Space on it) opens the edit modal (M5).
  * The M6 accent stripe and type badge reflect `task.type`.
  * M7 task-owner adds the avatar + name and the "Hand off to" dropdown —
  * both selects stop propagation so card interactions never open the modal.
+ * M8 due-tint adds the urgency background tint + label chip.
  */
-function TaskCard({ task, onStatusChange, onAssigneeChange, onOpen }: TaskCardProps) {
+function TaskCard({ task, today, onStatusChange, onAssigneeChange, onOpen }: TaskCardProps) {
   const handleOpen = () => onOpen(task);
   const meta = TYPE_META[task.type];
+  const dueState = getDueState(task, today);
+  const dueMeta = DUE_META[dueState];
 
   return (
     <article
@@ -83,6 +103,7 @@ function TaskCard({ task, onStatusChange, onAssigneeChange, onOpen }: TaskCardPr
       tabIndex={0}
       aria-label={`Edit task "${task.title}"`}
       data-task-type={task.type}
+      data-due-state={dueState}
       onClick={handleOpen}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
@@ -90,16 +111,26 @@ function TaskCard({ task, onStatusChange, onAssigneeChange, onOpen }: TaskCardPr
           handleOpen();
         }
       }}
-      className={`cursor-pointer rounded-md border border-slate-200 border-l-4 bg-surface-card p-3 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary ${meta.stripe}`}
+      className={`cursor-pointer rounded-md border border-slate-200 border-l-4 p-3 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary ${dueMeta ? dueMeta.bg : 'bg-surface-card'} ${meta.stripe}`}
     >
       <div className="flex items-start justify-between gap-2">
         <h3 className="text-sm font-medium text-text-primary">{task.title}</h3>
-        <span
-          data-type-badge
-          className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase leading-none ${meta.badge}`}
-        >
-          <meta.Icon />
-          {meta.label}
+        <span className="flex shrink-0 items-center gap-1">
+          {dueMeta && (
+            <span
+              data-due-chip
+              className={`inline-flex items-center rounded-full border px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase leading-none ${dueMeta.chip}`}
+            >
+              {dueMeta.label}
+            </span>
+          )}
+          <span
+            data-type-badge
+            className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase leading-none ${meta.badge}`}
+          >
+            <meta.Icon />
+            {meta.label}
+          </span>
         </span>
       </div>
       <p className="mt-1 text-xs leading-relaxed text-text-muted">{task.description}</p>

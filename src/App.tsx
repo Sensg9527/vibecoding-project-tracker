@@ -7,6 +7,7 @@ import { STAGES } from './data/constants';
 import { SEED_TASKS } from './data/seedTasks';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import type { ModalState, Task, TaskFormValues, TaskStatus } from './types/task';
+import { sameLocalDay } from './utils/dueDateUtils';
 import { localTodayISO, makeId } from './utils/taskUtils';
 
 /**
@@ -17,7 +18,7 @@ import { localTodayISO, makeId } from './utils/taskUtils';
  *   - M5  crud-modal    : ✅ "+ Task" create modal, click-to-edit, delete with confirmation.
  *   - M6  tag-style     : ✅ feature vs. bug accent stripes + FEATURE/BUG badges (TaskCard), App split into modules.
  *   - M7  task-owner    : ✅ avatar + name on every card, "Hand off to" dropdown, toast, workload strip.
- *   - M8  due-tint      : color cards by due date (uses DESIGN.md §2 due-state colors).
+ *   - M8  due-tint      : ✅ urgency tints + labels by due date (utils/dueDateUtils).
  *   - M9  context       : a curated Context briefing field on the modal.
  *   - M10 copy-prompt   : a "Copy as Prompt Context" button that serializes the task + context.
  *   - M11 anchors       : the Anchor Board above the Kanban.
@@ -25,7 +26,7 @@ import { localTodayISO, makeId } from './utils/taskUtils';
  *
  * Layout (M6 refactor):
  *   components/ (TaskCard, BoardColumn, TaskModal, Toast, TeamWorkload) · types/task
- *   hooks/useLocalStorage · data/ (constants, seedTasks) · utils/taskUtils
+ *   hooks/useLocalStorage · data/ (constants, seedTasks) · utils/ (taskUtils, dueDateUtils)
  */
 
 export default function App() {
@@ -50,6 +51,26 @@ export default function App() {
     },
     []
   );
+
+  // M8 due-tint: keep "today" fresh so urgency tints follow the calendar while
+  // the app stays open — a light 60 s check plus a re-check when the tab gets
+  // focus/visible again (e.g. after a laptop sleeps past midnight). The state
+  // only changes when the local calendar day actually changed.
+  const [today, setToday] = useState(() => new Date());
+  useEffect(() => {
+    const refreshToday = () => {
+      const now = new Date();
+      setToday((prev) => (sameLocalDay(prev, now) ? prev : now));
+    };
+    const timer = window.setInterval(refreshToday, 60_000);
+    window.addEventListener('focus', refreshToday);
+    document.addEventListener('visibilitychange', refreshToday);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('focus', refreshToday);
+      document.removeEventListener('visibilitychange', refreshToday);
+    };
+  }, []);
 
   // TODO M11 anchors:
   //   const [anchors, setAnchors] = useLocalStorage<Anchor[]>('vibetracker.anchors', [...]);
@@ -119,6 +140,7 @@ export default function App() {
             key={stage.id}
             stage={stage}
             tasks={tasks.filter((t) => t.status === stage.id)}
+            today={today}
             onStatusChange={handleStatusChange}
             onAssigneeChange={handleAssigneeChange}
             onOpenTask={handleOpenTask}

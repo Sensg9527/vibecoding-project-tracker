@@ -253,6 +253,21 @@ export class BrowserSession {
     await this.send('Input.dispatchKeyEvent', { type: 'keyUp', modifiers: 2, key: 'a', code: 'KeyA', windowsVirtualKeyCode: 65 });
   }
 
+  /** M8: set a React-controlled <input> (e.g. type="date") through the native setter + input/change events. */
+  async setInputValue(selector: string, value: string): Promise<boolean> {
+    return this.eval(
+      `(() => {
+        const el = document.querySelector(${JSON.stringify(selector)});
+        if (!el) return false;
+        const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+        set.call(el, ${JSON.stringify(value)});
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+        return true;
+      })()`
+    );
+  }
+
   /** Set a React-controlled <select> through its native value setter + change event. */
   async setSelect(selector: string, value: string): Promise<boolean> {
     return this.eval(

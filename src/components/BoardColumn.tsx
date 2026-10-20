@@ -5,6 +5,8 @@ import TaskCard from './TaskCard';
 interface BoardColumnProps {
   stage: (typeof STAGES)[number];
   tasks: Task[];
+  /** Current local date for M8 urgency tints. */
+  today: Date;
   onStatusChange: (id: string, status: TaskStatus) => void;
   onAssigneeChange: (id: string, assignee: string) => void;
   onOpenTask: (task: Task) => void;
@@ -13,7 +15,7 @@ interface BoardColumnProps {
 }
 
 /** One Kanban column: heading, optional "+ Task" button, task count, and the matching cards. */
-function BoardColumn({ stage, tasks, onStatusChange, onAssigneeChange, onOpenTask, onAddTask }: BoardColumnProps) {
+function BoardColumn({ stage, tasks, today, onStatusChange, onAssigneeChange, onOpenTask, onAddTask }: BoardColumnProps) {
   return (
     <section aria-label={`${stage.label} column`} className="flex min-h-64 flex-col">
       <header className="mb-2 flex items-center justify-between gap-2">
@@ -48,6 +50,7 @@ function BoardColumn({ stage, tasks, onStatusChange, onAssigneeChange, onOpenTas
             <TaskCard
               key={task.id}
               task={task}
+              today={today}
               onStatusChange={onStatusChange}
               onAssigneeChange={onAssigneeChange}
               onOpen={onOpenTask}

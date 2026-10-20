@@ -13,7 +13,8 @@ Records only what has been verified. Git operations (commits, tags, pushes) are 
 | 5 | `crud-modal` | ✅ Implemented · automated browser tests passed | See below. |
 | 6 | `tag-style` | ✅ Implemented · automated browser tests passed | See below. |
 | 7 | `task-owner` | ✅ Implemented · automated browser tests passed | See below. |
-| 8–13 | — | ⬜ Not started | |
+| 8 | `due-tint` | ✅ Implemented · automated browser tests passed | See below. |
+| 9–13 | — | ⬜ Not started | |
 
 ## M4 `data-model` — 2026-10-20
 
@@ -180,3 +181,39 @@ Records only what has been verified. Git operations (commits, tags, pushes) are 
 - Toast auto-dismiss is verified functionally (appears, disappears within ~2.5 s); the exact fade is a visual detail.
 
 **Deliberately not implemented in M7** — M8 due-tint, M9 context editor, M10 copy-prompt, M11 anchor board, M12 secret sauce, drag-and-drop.
+
+## M8 `due-tint` — 2026-10-20
+
+**What was built**
+
+- **Date classification module:** `src/utils/dueDateUtils.ts` with `getDueState(task, today?)` returning `safe | warning | overdue | neutral | none`. Rules, in priority order: (1) `status === 'done'` → `neutral`; (2) `dueDate` null/empty/malformed → `none`; (3) due before today → `overdue`; (4) due today or tomorrow → `warning`; (5) due in 2+ days → `safe`. This is the explicit date-only interpretation of the slide's "less than 24 h / more than 2 days" thresholds. `YYYY-MM-DD` is parsed as a **local-midnight** date (never UTC), day differences are computed between local midnights with `Math.round` absorbing the 23/25-hour DST days, and impossible dates (`2026-13-45`, `2026-02-30`) are rejected as `none`. No new fields on the locked `Task` model.
+- **Card styling (TaskCard):** the DESIGN.md §2 tokens tint the whole card background (`bg-due-safe` #DBEAFE, `bg-due-warning` #FEF3C7, `bg-due-overdue` #FEE2E2, `bg-due-neutral` #E5E7EB) plus a small uppercase label chip (**SAFE / DUE SOON / OVERDUE / DONE**) so colour is never the only signal. Tasks without a due date keep the plain white card with no indicator. The M6 green/red accent stripe, type badge, titles, descriptions, M7 owner avatars, handoff/status dropdowns and due date text all remain visible and functional.
+- **Automatic updates:** urgency recomputes on every render, so due-date edits in the M5 modal, status changes, Done moves (both directions), and page refreshes all restyle immediately. For the "app stays open past midnight" case, App keeps a `today` state refreshed by a lightweight 60 s interval plus a re-check on window `focus`/`visibilitychange` (with a same-day guard so nothing re-renders unless the local calendar day actually changed); the timer and listeners are cleaned up on unmount.
+
+**Files created / modified**
+
+- `src/utils/dueDateUtils.ts` — new: `DueState`, `getDueState`, `dayDifference`, `sameLocalDay`.
+- `src/components/TaskCard.tsx` — urgency tint + label chip, `data-due-state` attribute, new `today` prop.
+- `src/components/BoardColumn.tsx` — passes `today` through.
+- `src/App.tsx` — `today` state + 60 s/focus/visibility refresh effect (M8 comment updated).
+- `tests/helpers/cdp-harness.ts` — new `setInputValue` helper (React-controlled date input).
+- `tests/due-tint.test.ts` — new (4 pure unit tests + 15 browser tests).
+- `tests/run.mjs` — registered `tests/due-tint.test.ts`.
+- `MILESTONE_PROGRESS.md` — this file.
+
+**Tests performed**
+
+- `npm run typecheck` — passed, no errors.
+- `npm run build` — passed (Vite 5.4.21, 41 modules, ~1.5 s).
+- `npm test` — **68/68 passed, run twice** (49 existing + 19 new). New coverage:
+  - *Unit (fixed clock, independent of the execution date):* past/today/tomorrow/2+/15-day classification; done overrides overdue/no-date; null/empty/malformed (`not-a-date`, `2026/13/45`-style, wrong separators) → `none`; day differences stay exact across month-end, year-end and the 2026-10-25 UK DST transition.
+  - *Browser (due dates computed relative to the real execution date):* SAFE for future dates, DUE SOON for today and tomorrow, OVERDUE for past dates, neutral DONE for both done cards, done-overrides-overdue, no indicator on date-less cards (plain white), editing the due date in the modal restyles, status→Done restyles immediately, Done→active recalculates, refresh preserves all styling, M6 stripes stay green/red on tinted cards with FEATURE/BUG badges intact, M7 owner/handoff/toast still work on tinted cards, and the day-rollover test: a page-side fake `Date` advanced 2 days + the app's focus re-check flips "due tomorrow" to OVERDUE and back after restoring the real clock.
+  - Zero console errors across the whole suite.
+
+**Known limitations / manual verification still needed**
+
+- The 60 s interval is the production rollover mechanism; the test exercises the same refresh path via the window-focus hook (documented in the test) instead of waiting a minute — both call the identical `refreshToday` function.
+- The fake-clock test stubs `Date` only long enough to observe the flip, then restores it; this is a standard isolated-clock technique, not a change to the app.
+- Visual contrast of the tint + chips is functional (computed styles asserted); a quick human pass is still worthwhile for taste (e.g. chip saturation at 10 px).
+
+**Deliberately not implemented in M8** — M9 context editor, M10 copy-prompt, M11 anchor board, M12 secret sauce, drag-and-drop.
