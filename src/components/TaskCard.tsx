@@ -1,18 +1,39 @@
-import type { ReactElement } from 'react';
+import { useRef, type DragEvent, type MouseEvent, type ReactElement } from 'react';
 import { STAGES, TEAM } from '../data/constants';
 import type { Task, TaskStatus, TaskType } from '../types/task';
 import { getDueState, type DueState } from '../utils/dueDateUtils';
+import { isClickSuppressed } from '../utils/dragGuard';
 import { initialsOf } from '../utils/taskUtils';
 
 interface TaskCardProps {
   task: Task;
   /** App's "current local date" — passed down so urgency tints re-evaluate on day rollover (M8). */
   today: Date;
+  /** M12 drag & drop: true while this very card is being dragged (dimmed). */
+  isDragging: boolean;
   onStatusChange: (id: string, status: TaskStatus) => void;
   onAssigneeChange: (id: string, assignee: string) => void;
   onOpen: (task: Task) => void;
   /** M10: generate the markdown prompt for this task and copy it. */
   onCopyPrompt: (task: Task) => void;
+  /** M12 drag & drop: fires from anywhere on the card when a drag starts. */
+  onDragStart: (task: Task, e: DragEvent<HTMLElement>) => void;
+  /** M12 drag & drop: fires when the drag ends (dropped or cancelled). */
+  onDragEnd: () => void;
+}
+
+/** M12 drag & drop — a six-dot grip, the card's drag affordance (DESIGN.md §7: inline SVG, no icon library). */
+function GripIcon(): ReactElement {
+  return (
+    <svg className="h-3.5 w-3.5" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" focusable="false">
+      <circle cx="4" cy="3" r="1.4" />
+      <circle cx="10" cy="3" r="1.4" />
+      <circle cx="4" cy="8" r="1.4" />
+      <circle cx="10" cy="8" r="1.4" />
+      <circle cx="4" cy="13" r="1.4" />
+      <circle cx="10" cy="13" r="1.4" />
+    </svg>
+  );
 }
 
 /** M6 tag-style — a small sparkle for features. */
@@ -94,12 +115,46 @@ const DUE_META: Record<DueState, { label: string; bg: string; chip: string } | n
  * M8 due-tint adds the urgency background tint + label chip.
  * M10 copy-prompt adds the "Copy as Prompt Context" button (stops propagation
  * like the selects — copying never opens the modal or changes the task).
+ * M12 drag & drop: the WHOLE card is the drag source (left mouse button) —
+ * press-and-move drags, a plain click opens the modal, and the six-dot grip
+ * is just the visual affordance. Mousedowns on interactive controls (selects,
+ * buttons, labels) are remembered so a drag starting there is cancelled, and
+ * a click arriving right after a drag is ignored so a completed drag can
+ * never pop the modal open.
  */
-function TaskCard({ task, today, onStatusChange, onAssigneeChange, onOpen, onCopyPrompt }: TaskCardProps) {
-  const handleOpen = () => onOpen(task);
+function TaskCard({ task, today, isDragging, onStatusChange, onAssigneeChange, onOpen, onCopyPrompt, onDragStart, onDragEnd }: TaskCardProps) {
   const meta = TYPE_META[task.type];
   const dueState = getDueState(task, today);
   const dueMeta = DUE_META[dueState];
+  /** Which element the card's current mouse gesture started on — used to veto drags that begin on a control. */
+  const mousedownTargetRef = useRef<EventTarget | null>(null);
+
+  const handleMouseDown = (e: MouseEvent<HTMLElement>) => {
+    mousedownTargetRef.current = e.target;
+  };
+
+  const handleCardDragStart = (e: DragEvent<HTMLElement>) => {
+    const origin = mousedownTargetRef.current as HTMLElement | null;
+    mousedownTargetRef.current = null;
+    if (origin && origin.closest('select, button, a, input, textarea, label')) {
+      // The gesture started on an interactive control — cancel the drag
+      // before it begins (cancelling dragstart stops the drag operation).
+      e.preventDefault();
+      return;
+    }
+    onDragStart(task, e);
+  };
+
+  const handleCardDragEnd = () => {
+    // App records the drag end in the shared dragGuard (at drop time too —
+    // dragend can fire on a node React already detached after a move).
+    onDragEnd();
+  };
+
+  const handleOpen = () => {
+    if (isClickSuppressed()) return;
+    onOpen(task);
+  };
 
   return (
     <article
@@ -108,6 +163,11 @@ function TaskCard({ task, today, onStatusChange, onAssigneeChange, onOpen, onCop
       aria-label={`Edit task "${task.title}"`}
       data-task-type={task.type}
       data-due-state={dueState}
+      data-task-id={task.id}
+      draggable
+      onMouseDown={handleMouseDown}
+      onDragStart={handleCardDragStart}
+      onDragEnd={handleCardDragEnd}
       onClick={handleOpen}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
@@ -115,10 +175,26 @@ function TaskCard({ task, today, onStatusChange, onAssigneeChange, onOpen, onCop
           handleOpen();
         }
       }}
-      className={`cursor-pointer rounded-md border border-slate-200 border-l-4 p-3 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary ${dueMeta ? dueMeta.bg : 'bg-surface-card'} ${meta.stripe}`}
+      className={`cursor-pointer rounded-md border border-slate-200 border-l-4 p-3 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary ${dueMeta ? dueMeta.bg : 'bg-surface-card'} ${meta.stripe} ${isDragging ? 'opacity-50' : ''}`}
     >
       <div className="flex items-start justify-between gap-2">
-        <h3 className="text-sm font-medium text-text-primary">{task.title}</h3>
+        <div className="flex min-w-0 flex-1 items-start gap-1">
+          {/* M12 drag & drop: the whole card is draggable, so the grip is just
+              the visual affordance (drag anywhere on the card). aria-hidden +
+              not tabbable on purpose — the status dropdown stays the
+              accessible alternative for moving tasks. Clicking the grip opens
+              the modal like any other click on the card. */}
+          <span
+            data-drag-handle
+            aria-hidden="true"
+            tabIndex={-1}
+            title="Drag to move or reorder"
+            className="mt-0.5 shrink-0 cursor-grab rounded p-0.5 text-text-muted hover:bg-slate-100 hover:text-text-primary active:cursor-grabbing"
+          >
+            <GripIcon />
+          </span>
+          <h3 className="text-sm font-medium text-text-primary">{task.title}</h3>
+        </div>
         <span className="flex shrink-0 items-center gap-1">
           {dueMeta && (
             <span

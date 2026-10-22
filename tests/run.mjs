@@ -28,6 +28,7 @@ const TEST_FILES = [
   'tests/anchor-board.test.ts',
   'tests/project-health.test.ts',
   'tests/demo-login.test.ts',
+  'tests/drag-drop.test.ts',
 ];
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));

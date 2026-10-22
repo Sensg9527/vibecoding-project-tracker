@@ -403,6 +403,159 @@ export class BrowserSession {
     );
   }
 
+  /**
+   * M12 drag & drop: a synthetic HTML5 drag from a card to a drop point,
+   * dispatching the same bubbling DragEvents (dragstart → dragover → drop →
+   * dragend, sharing one DataTransfer) that a real drag produces. `mode`:
+   * 'end' targets a column (its aria-label, e.g. 'In Progress');
+   * 'above'/'below' target another card by title. `source` picks where the
+   * drag starts: the grip ('handle', the pre-full-card affordance) or the
+   * card body ('body' — since M12 full-card dragging either must work).
+   * Headless browsers have no real drag loop, so the events are dispatched
+   * from page JS — this exercises the app's real drag handlers, not a stub.
+   */
+  async dragTask(
+    title: string,
+    target: string,
+    mode: 'above' | 'below' | 'end' = 'end',
+    source: 'handle' | 'body' = 'handle'
+  ): Promise<boolean> {
+    // Build the target + source lookups on the harness side so the page
+    // script never references TS variables directly.
+    const targetExpr =
+      mode === 'end'
+        ? `document.querySelector(${JSON.stringify(`section[aria-label="${target} column"]`)})`
+        : `[...document.querySelectorAll('article')].find(a => a.textContent.includes(${JSON.stringify(target)}))`;
+    const sourceExpr =
+      source === 'handle'
+        ? `card.querySelector('[data-drag-handle]')`
+        : `card.querySelector('h3') ?? card.querySelector('p')`;
+    return this.eval(`(async () => {
+      const card = [...document.querySelectorAll('article')].find(a => a.textContent.includes(${JSON.stringify(title)}));
+      if (!card) return false;
+      const sourceEl = ${sourceExpr};
+      if (!sourceEl) return false;
+      const mode = ${JSON.stringify(mode)};
+      const targetEl = ${targetExpr};
+      if (!targetEl) return false;
+      const dt = new DataTransfer();
+      const fire = (el, type, y) => el.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer: dt, clientY: y ?? 0 }));
+      fire(sourceEl, 'dragstart', 0);
+      await new Promise(r => setTimeout(r, 30)); // let React commit the dragging state
+      const rect = targetEl.getBoundingClientRect();
+      const y = mode === 'above' ? rect.top + 2 : rect.bottom - 2;
+      fire(targetEl, 'dragover', y);
+      await new Promise(r => setTimeout(r, 30)); // let React commit the drop slot
+      fire(targetEl, 'drop', y);
+      await new Promise(r => setTimeout(r, 30));
+      fire(sourceEl, 'dragend', 0);
+      return true;
+    })()`);
+  }
+
+  /**
+   * M12 full-card drag guard: start a drag whose mouse gesture begins ON an
+   * interactive control (status select, handoff select or the copy button).
+   * The card must cancel such drags, so the target column must stay
+   * untouched. The test asserts that; this helper just performs the attempt.
+   */
+  async attemptDragFromControl(
+    title: string,
+    control: 'status' | 'handoff' | 'copy',
+    target: string,
+    mode: 'above' | 'below' | 'end' = 'end'
+  ): Promise<boolean> {
+    const controlExpr = {
+      status: `card.querySelector('select[data-field="status"]')`,
+      handoff: `card.querySelector('select[data-field="handoff"]')`,
+      copy: `card.querySelector('button[data-action="copy-prompt"]')`,
+    }[control];
+    const targetExpr =
+      mode === 'end'
+        ? `document.querySelector(${JSON.stringify(`section[aria-label="${target} column"]`)})`
+        : `[...document.querySelectorAll('article')].find(a => a.textContent.includes(${JSON.stringify(target)}))`;
+    return this.eval(`(async () => {
+      const card = [...document.querySelectorAll('article')].find(a => a.textContent.includes(${JSON.stringify(title)}));
+      if (!card) return false;
+      const controlEl = ${controlExpr};
+      if (!controlEl) return false;
+      const targetEl = ${targetExpr};
+      if (!targetEl) return false;
+      const mode = ${JSON.stringify(mode)};
+      const dt = new DataTransfer();
+      controlEl.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0 }));
+      const fire = (el, type, y) => el.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer: dt, clientY: y ?? 0 }));
+      fire(controlEl, 'dragstart', 0);
+      await new Promise(r => setTimeout(r, 30));
+      const rect = targetEl.getBoundingClientRect();
+      const y = mode === 'above' ? rect.top + 2 : rect.bottom - 2;
+      fire(targetEl, 'dragover', y);
+      await new Promise(r => setTimeout(r, 30));
+      fire(targetEl, 'drop', y);
+      await new Promise(r => setTimeout(r, 30));
+      fire(controlEl, 'dragend', 0);
+      return true;
+    })()`);
+  }
+
+  /** M12 drag & drop: start a drag and cancel it (dragend without any drop). */
+  async cancelDrag(title: string): Promise<boolean> {
+    return this.eval(`(async () => {
+      const card = [...document.querySelectorAll('article')].find(a => a.textContent.includes(${JSON.stringify(title)}));
+      if (!card) return false;
+      const handle = card.querySelector('[data-drag-handle]');
+      if (!handle) return false;
+      const dt = new DataTransfer();
+      const fire = (el, type) => el.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer: dt }));
+      fire(handle, 'dragstart');
+      await new Promise(r => setTimeout(r, 30));
+      fire(handle, 'dragend');
+      return true;
+    })()`);
+  }
+
+  /**
+   * M12 full-card drag: a genuine (trusted) left click via CDP mouse input
+   * at the centre of a part of a card. `area`: 'body' = the card text,
+   * 'handle' = the six-dot grip, 'status'/'handoff' = the two selects,
+   * 'copy' = the Copy as Prompt Context button.
+   */
+  async mouseClickCard(
+    title: string,
+    area: 'body' | 'handle' | 'status' | 'handoff' | 'copy' = 'body'
+  ): Promise<boolean> {
+    const areaExpr = {
+      body: `card.querySelector('h3') ?? card.querySelector('p')`,
+      handle: `card.querySelector('[data-drag-handle]')`,
+      status: `card.querySelector('select[data-field="status"]')`,
+      handoff: `card.querySelector('select[data-field="handoff"]')`,
+      copy: `card.querySelector('button[data-action="copy-prompt"]')`,
+    }[area];
+    const rect = await this.eval(`(() => {
+      const card = [...document.querySelectorAll('article')].find(a => a.textContent.includes(${JSON.stringify(title)}));
+      if (!card) return null;
+      const el = ${areaExpr};
+      if (!el) return null;
+      // The headless viewport is small — bring the element into view first
+      // or the click coordinates land outside it and hit nothing.
+      el.scrollIntoView({ block: 'center', inline: 'center' });
+      const r = el.getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    })()`);
+    if (!rect) return false;
+    await this.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: rect.x, y: rect.y, button: 'left', buttons: 1, clickCount: 1 });
+    await this.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: rect.x, y: rect.y, button: 'left', buttons: 0, clickCount: 1 });
+    return true;
+  }
+
+  // NOTE (M12 full-card drag): a "trusted" browser-level drag drop was
+  // attempted via CDP Input.setInterceptDrags + Input.dispatchDragEvent, but
+  // headless Chromium delivers NOTHING to the page for dispatchDragEvent
+  // (verified with capture listeners — the log stayed empty; the commands
+  // succeed silently). Real trusted DRAGS are therefore untestable headless;
+  // drag coverage uses synthetic DragEvents through the real handlers, and
+  // click/control behaviour uses genuine trusted CDP mouse input (below).
+
   // --- assertions helpers -----------------------------------------------------------
 
   cardExists(title: string): Promise<boolean> {

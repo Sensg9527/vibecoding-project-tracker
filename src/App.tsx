@@ -1,20 +1,28 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type DragEvent } from 'react';
 import AnchorBoard from './components/AnchorBoard';
-import BoardColumn from './components/BoardColumn';
+import BoardColumn, { type DropSlot } from './components/BoardColumn';
 import LoginPage from './components/LoginPage';
 import ManualCopyDialog from './components/ManualCopyDialog';
 import ProjectHealth from './components/ProjectHealth';
 import TaskModal from './components/TaskModal';
 import TeamWorkload from './components/TeamWorkload';
 import Toast from './components/Toast';
-import { DEMO_SESSION_KEY, INITIAL_ANCHORS, STAGES } from './data/constants';
+import { DEMO_SESSION_KEY, INITIAL_ANCHORS, STAGES, TASK_ORDER_KEY } from './data/constants';
 import { SEED_TASKS } from './data/seedTasks';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import type { Anchor, ModalState, Task, TaskFormValues, TaskStatus } from './types/task';
 import { normalizeAnchors } from './utils/anchorUtils';
 import { copyTextToClipboard } from './utils/clipboardUtils';
+import { recordDragEnd } from './utils/dragGuard';
 import { sameLocalDay } from './utils/dueDateUtils';
 import { formatTaskAsPrompt } from './utils/promptUtils';
+import {
+  insertTaskOrder,
+  normalizeTaskOrder,
+  sortTasksForColumn,
+  taskOrderForCreate,
+  taskOrderForDelete,
+} from './utils/taskOrderUtils';
 import { localTodayISO, makeId } from './utils/taskUtils';
 
 /**
@@ -30,6 +38,7 @@ import { localTodayISO, makeId } from './utils/taskUtils';
  *   - M10 copy-prompt   : ✅ "Copy as Prompt Context" button + markdown serialization + clipboard.
  *   - M11 anchors       : ✅ the Deliverable Anchor Board (Presentation / Demo / Report / Documentation).
  *   - M12 secret-sauce  : ✅ Project Health dashboard (live, collapsible stats) + demo login (userdemo/userdemo, Continue as Demo).
+ *   - M12 drag-and-drop : ✅ drag cards between columns + reorder within columns by dragging anywhere on the card (grip is the visual affordance), ordered by `vibetracker.taskOrder`.
  *
  * Layout (M6 refactor):
  *   components/ (TaskCard, BoardColumn, TaskModal, AnchorBoard, LoginPage, ProjectHealth, Toast, TeamWorkload) · types/task
@@ -70,6 +79,18 @@ export default function App() {
 
   // Seed data only applies when nothing is stored yet (see useLocalStorage).
   const [tasks, setTasks] = useLocalStorage<Task[]>('vibetracker.tasks', SEED_TASKS);
+
+  // M12 drag-and-drop: per-column card ordering, kept in its own key so the
+  // locked `Task` model stays untouched. Holds task ids; tasks missing from
+  // the list keep their array order at the bottom of their column.
+  const [storedTaskOrder, setTaskOrder] = useLocalStorage<string[]>(TASK_ORDER_KEY, []);
+  const taskOrder = normalizeTaskOrder(storedTaskOrder);
+
+  // M12 drag-and-drop: transient drag state — which card is being dragged
+  // (dimmed) and which column/slot is the current drop target (highlighted
+  // column + insertion line). Never persisted.
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dropSlot, setDropSlot] = useState<DropSlot | null>(null);
 
   // M5 crud-modal: null = closed, task null = create mode, task set = edit mode.
   const [modal, setModal] = useState<ModalState | null>(null);
@@ -158,6 +179,65 @@ export default function App() {
     showToast(`Assigned to ${assignee}.`);
   };
 
+  // M12 drag-and-drop handlers. The dragged card records its id in the
+  // dataTransfer (readable at drop time); dragover on a column reports the
+  // computed insertion slot; drop applies the status change and rewrites the
+  // order list; dragend (or dragleave) clears the transient highlights.
+
+  const handleDragStart = (task: Task, e: DragEvent<HTMLElement>) => {
+    setDraggingId(task.id);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', task.id);
+  };
+
+  const handleDragOver = (status: TaskStatus, beforeId: string | null) => {
+    // dragover fires continuously — bail out unless the slot actually changed.
+    setDropSlot((prev) =>
+      prev !== null && prev.status === status && prev.beforeId === beforeId ? prev : { status, beforeId }
+    );
+  };
+
+  const handleTaskDrop = (status: TaskStatus, e: DragEvent<HTMLElement>) => {
+    e.preventDefault();
+    const id = (e.dataTransfer && e.dataTransfer.getData('text/plain')) || draggingId;
+    const beforeId = dropSlot !== null && dropSlot.status === status ? dropSlot.beforeId : null;
+    setDraggingId(null);
+    setDropSlot(null);
+    if (!id) return; // invalid/cancelled drag — change nothing
+    const task = tasks.find((t) => t.id === id);
+    if (!task) return;
+    // Full-card drag: a completed drop is a drag gesture — record it so any
+    // trailing click is swallowed and never opens the edit modal. Recorded
+    // HERE (not in dragend) because a cross-column move remounts the card,
+    // and the browser can fire dragend on a node React has already detached.
+    recordDragEnd();
+    const statusChanged = task.status !== status;
+    if (statusChanged) {
+      // Same update path as the status dropdown — only `status` changes; every
+      // other field (AI context, timestamps, …) is preserved.
+      setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, status } : t)));
+    }
+    const nextOrder = insertTaskOrder(taskOrder, id, beforeId);
+    if (nextOrder !== taskOrder) setTaskOrder(nextOrder); // no-op drops skip the storage write
+    if (statusChanged || nextOrder !== taskOrder) {
+      const label = STAGES.find((s) => s.id === status)?.label ?? status;
+      showToast(statusChanged ? `Moved "${task.title}" to ${label}.` : `Reordered "${task.title}".`);
+    }
+  };
+
+  const handleDragEnd = () => {
+    setDraggingId(null);
+    setDropSlot(null);
+    // Covers drags that end without a drop (Escape / dragged back to start):
+    // swallow the trailing click too.
+    recordDragEnd();
+  };
+
+  const handleDragLeave = (status: TaskStatus, e: DragEvent<HTMLElement>) => {
+    if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+    setDropSlot((prev) => (prev !== null && prev.status === status ? null : prev));
+  };
+
   /**
    * M5/M9: save a create/edit — builds the model fields on create, preserves
    * id + createdDate on edit. M9: `contextUpdatedAt` is set automatically
@@ -190,6 +270,9 @@ export default function App() {
         contextUpdatedAt: hasContext ? new Date().toISOString() : null,
       };
       setTasks((prev) => [...prev, task]);
+      // M12 drag-and-drop: new tasks get a consistent initial position —
+      // the top of their column.
+      setTaskOrder((prev) => taskOrderForCreate(normalizeTaskOrder(prev), task.id));
     }
     setModal(null);
   };
@@ -197,6 +280,8 @@ export default function App() {
   /** M5: remove a task; the confirmation happens inside the modal (DESIGN.md §5 microcopy). */
   const handleDeleteTask = (id: string) => {
     setTasks((prev) => prev.filter((t) => t.id !== id));
+    // M12 drag-and-drop: prune the id from the order list too.
+    setTaskOrder((prev) => taskOrderForDelete(normalizeTaskOrder(prev), id));
     setModal(null);
   };
 
@@ -249,12 +334,19 @@ export default function App() {
           <BoardColumn
             key={stage.id}
             stage={stage}
-            tasks={tasks.filter((t) => t.status === stage.id)}
+            tasks={sortTasksForColumn(tasks.filter((t) => t.status === stage.id), taskOrder)}
             today={today}
+            draggingId={draggingId}
+            dropSlot={dropSlot}
             onStatusChange={handleStatusChange}
             onAssigneeChange={handleAssigneeChange}
             onOpenTask={handleOpenTask}
             onCopyPrompt={handleCopyPrompt}
+            onDragStart={handleDragStart}
+            onDragOver={handleDragOver}
+            onDrop={handleTaskDrop}
+            onDragEnd={handleDragEnd}
+            onDragLeave={handleDragLeave}
             onAddTask={stage.id === 'todo' ? handleAddTask : undefined}
           />
         ))}

@@ -377,4 +377,76 @@ Records only what has been verified. Git operations (commits, tags, pushes) are 
 - Automated checks are headless; a quick human pass on the login screen and the health dashboard's visual layout (card grid at narrow widths, progress-bar colour) is still worthwhile, as is a real browser tab close/open to watch the sessionStorage flag drop.
 - `loginAs` submits via `requestSubmit()` (the same browser submit path as Enter); the Enter-key test uses trusted CDP key events and passed in both runs.
 
-**Deliberately not implemented in M12** — M13 pitch readiness, drag-and-drop, real authentication/backend.
+### M12 follow-up — Kanban Drag & Drop — 2026-10-21
+
+**What was built** (an additional feature within M12, alongside the Project Health Dashboard and Demo Login — no new milestone):
+
+- **Drag handle** (`TaskCard`): every card gets a six-dot grip (`data-drag-handle`, inline SVG per DESIGN.md §7) as the only draggable part of the card, so text selection and the status/handoff selects and Copy button are never hijacked by a drag. The handle is `aria-hidden` + not tabbable on purpose — the status dropdown stays the accessible alternative. Clicking the handle never opens the edit modal (stopPropagation). The dragged card dims (`opacity-50`) while dragging.
+- **Cross-column dragging** (any direction, including backwards Done → To Do and into empty columns): a drop updates `Task.status` through the same `handleStatusChange`-style state path, so column counts, Project Health statistics and due-date tints all update automatically; every other field (AI context, `contextUpdatedAt`, dates, …) is preserved byte-for-byte. The move is announced through the existing toast (`role="status"`).
+- **Same-column reordering** (`BoardColumn` + pure `taskOrderUtils`): dragover computes the insertion slot from the pointer Y against the card midpoints (the dragged card's own slot never counts); a brand-primary insertion line (`data-drop-indicator`, a plain `div` — never an `article`) shows the exact position and the targeted column gets a brand ring. Drop inserts before the targeted card or at the bottom.
+- **Ordering persistence** — `vibetracker.taskOrder` (localStorage, an array of task ids) keeps column order OUT of the locked `Task` model. Each column renders via `sortTasksForColumn`: ids in the list first, ids missing from the list stay visible at the bottom in their stored array order (so pre-existing and hand-edited storage never loses tasks). `normalizeTaskOrder` repairs garbage storage; new tasks prepend (consistent top-of-column position); deletion prunes the id; a status-dropdown move deliberately leaves the order list untouched; no-op drops return the same array reference so nothing is written. Invalid/cancelled drags (no id recorded, or drop with an empty DataTransfer) change nothing.
+- **Drag lifecycle** (`App`): transient (never persisted) `draggingId`/`dropSlot` state set by dragstart/dragover and cleared by drop/dragend/dragleave; the dragged id travels in `dataTransfer('text/plain')` with a state fallback. Real HTML5 DnD events only — no drag library, no dependency added (`package.json` untouched).
+
+**Files created / modified**
+
+- `src/utils/taskOrderUtils.ts` — new: pure `insertTaskOrder`, `sortTasksForColumn`, `taskOrderForCreate`, `taskOrderForDelete`, `normalizeTaskOrder`.
+- `src/data/constants.ts` — `TASK_ORDER_KEY` (`vibetracker.taskOrder`).
+- `src/App.tsx` — task-order state + drag handlers, create/delete order hooks, per-column ordered render, M12 comment.
+- `src/components/TaskCard.tsx` — grip handle, `data-task-id`, drag dimming.
+- `src/components/BoardColumn.tsx` — drop target: midpoint slot computation, insertion indicator, column highlight, drag handlers.
+- `tests/helpers/cdp-harness.ts` — `dragTask(title, target, 'above'|'below'|'end')` + `cancelDrag(title)` (synthetic DragEvents through the real handlers).
+- `tests/drag-drop.test.ts` — new: 10 pure unit tests (ordering utils) + 17 browser checks.
+- `tests/run.mjs` — registered `tests/drag-drop.test.ts` (13 files now).
+- `PRD.md` — FR-21 + DR-21 added; §3 persistence surfaces updated.
+- `STATUS.md`, `MILESTONE_PROGRESS.md` — this file.
+
+**Tests performed**
+
+- `npm run typecheck` — passed, no errors.
+- `npm run build` — passed (Vite 5.4.21, 50 modules).
+- `npm test` — **188/188 passed, run twice to confirm repeatability** (161 existing + 27 new). New coverage:
+  - *Unit (pure Node):* `insertTaskOrder` before/append/unknown-target/move, same-reference no-ops (drop on itself, drop above the next card); `sortTasksForColumn` ordered-first, unordered-at-bottom stability, empty order, ghost ids; `taskOrderForCreate` prepends; `taskOrderForDelete` prunes; `normalizeTaskOrder` repairs null/string/object/garbage and filters non-strings.
+  - *Browser (controlled 5-task fixture, Review empty, seeded order `['t1'…'t5']`):* every card exposes a `draggable` handle; To Do → In Progress updates status + lands at the bottom + stored order rewritten + "Moved … to In Progress." toast; Done → To Do works backwards; dropping into the empty Review column works; cross-column moves persist after refresh; a drag changes ONLY status (title/description/type/assignee/dates/AI context/timestamps byte-identical); same-column drag-below reorders [t1,t2] → [t2,t1] and survives refresh; cross-column drop above a card lands exactly between the targeted cards (In Progress [t3,t1,t4]); two tasks created via the modal stack newest-first at the top of To Do with both ids prepended to the order; the status dropdown still moves cards and deliberately leaves the order list untouched; dragging never opens the edit modal and clears the indicator/highlight afterwards; Copy and handoff controls work after a drag (clipboard stubbed, toasts asserted); Project Health completed 1→2 / 20%→40% and column counts [1,2,0,2] after a drag into Done; cancelled drags (dragend without drop) and invalid drops (empty DataTransfer) leave `vibetracker.tasks` and `vibetracker.taskOrder` byte-identical; tasks missing from the order stay visible at the bottom and garbage order storage falls back to array order; zero runtime console errors.
+- Regression: all 12 existing test files (161 tests) re-ran green twice against the drag-enabled app — no existing test rewritten.
+
+**Known limitations / manual verification still needed**
+
+- Drag & drop is mouse/pointer-based HTML5 DnD for desktop browsers (NFR-04). No keyboard-based reordering: the status dropdown remains the accessible alternative (documented in PRD FR-21). Touch devices are out of scope.
+- The browser tests dispatch synthetic DragEvents (headless has no real drag loop), so the app's handlers are verified end-to-end but not a real OS drag; a quick human pass with a real mouse drag (drag image, column highlight, insertion line) is still worthwhile.
+- No task filters exist in the app, so the "filters must keep working" requirement is trivially satisfied; the ordering store is separate from the task array, so reordering can never drop tasks from persistence.
+
+**Deliberately not implemented in M12** — M13 pitch readiness, real authentication/backend.
+
+### M12 follow-up — Full-card Drag & Drop — 2026-10-21
+
+**What changed** (an improvement to the M12 drag & drop, not a new milestone — the existing drag system, handlers and `vibetracker.taskOrder` persistence are untouched):
+
+- **The whole card is now the drag source** (`TaskCard`): `draggable` moved from the grip span to the `article`; the six-dot grip stays purely as the visual affordance (`data-drag-handle`, cursor-grab, tooltip). A plain click anywhere on the card — including the grip — opens the edit modal; press-and-hold then move starts the drag. All existing App-level handlers (`handleDragStart`/`handleDragOver`/`handleTaskDrop`) and the order/persistence logic are reused as-is.
+- **Click vs drag:** browsers suppress the click that would follow a native drag, but a new module-level guard (`src/utils/dragGuard.ts` — `recordDragEnd()`/`isClickSuppressed()`, 250 ms window, injectable timestamps) makes it deterministic. It is recorded in App's **drop** handler, not just dragend: a cross-column drop remounts the card under its new column (per-component state is lost) and dragend can fire on a node React has already detached (verified empirically — the first per-component implementation failed its own test). App's `handleDragEnd` also records, covering cancelled drags. `TaskCard`'s click handler skips `onOpen` while suppressed.
+- **Interactive controls are protected:** the card remembers its mousedown target; a dragstart whose gesture began on a `select`, `button`, `a`, `input`, `textarea` or `label` is cancelled before the drag begins (`preventDefault` on dragstart aborts the drag operation). The two selects and the Copy button keep their existing `stopPropagation` so they never open the modal.
+- **Known trade-off (accepted):** with the card draggable, selecting card text with the mouse is no longer possible — the drag gesture takes precedence.
+
+**Files created / modified**
+
+- `src/utils/dragGuard.ts` — new: module-level post-drag click guard.
+- `src/components/TaskCard.tsx` — `draggable` on the article, mousedown-target veto, guard check on open, grip demoted to visual affordance.
+- `src/App.tsx` — `recordDragEnd()` in `handleTaskDrop` + `handleDragEnd`; comments updated.
+- `tests/helpers/cdp-harness.ts` — `dragTask(…, source: 'handle' | 'body')`; new `attemptDragFromControl()` (mousedown on a control + dragstart, to exercise the veto) and `mouseClickCard(title, area)` (GENUINE trusted CDP mouse clicks; scrolls the element into view first — the small headless viewport made sub-fold clicks land on nothing).
+- `tests/drag-drop.test.ts` — 2 new unit tests (`dragGuard` window edge cases) + 8 new browser checks; the old "draggable handle" check updated to assert the whole card is draggable.
+- `PRD.md` — FR-21 clarified: entire card draggable, click-without-move opens the modal, controls never start a drag, completed drags never open the modal.
+- `STATUS.md`, `MILESTONE_PROGRESS.md` — this file.
+
+**Tests performed**
+
+- `npm run typecheck` — passed, no errors.
+- `npm run build` — passed (Vite 5.4.21).
+- `npm test` — **198/198 passed, 0 failed / 0 skipped / 0 todo, run twice** (188 previous + 10 new; drag-drop file now 37 tests: 12 unit + 25 browser). New coverage:
+  - *Browser:* every card `draggable` + grip kept; dragging from the card body and from the grip both work cross-column (status + order + storage asserted); a genuine trusted mouse click on the body and on the grip opens the edit modal (Escape closes); a completed drag never opens the modal — a click dispatched right after the dragend (same page script, inside the guard window) is swallowed, and a later genuine click opens it again; drags whose gesture starts on the status select, handoff select or Copy button are cancelled (storage byte-identical, board unchanged); genuine mouse clicks keep the Copy button (toast, clipboard stubbed), status select and handoff select fully functional without opening the modal or changing values; same-column reorder started from the card body; body-dragged status + order persist after refresh.
+  - *Unit:* `dragGuard` suppresses clicks inside the 250 ms window (including the edge instant) and lets clicks through once it passes.
+- Regression: all 13 test files re-ran green twice — no existing test rewritten beyond the one drag-handle assertion the change deliberately invalidates.
+
+**What could not be tested headless (verified, not skipped)**
+
+- A "trusted" browser-level drag via CDP `Input.setInterceptDrags` + `Input.dispatchDragEvent` was attempted: the commands succeed silently but deliver NO page events in headless (capture listeners logged an empty list), which is why Puppeteer removed its drag interception API. Trusted input coverage therefore uses genuine mouse clicks; drag sequences remain synthetic DragEvents through the real handlers. A human pass with a real mouse drag remains recommended.
+
+**Still not implemented in M12** — M13 pitch readiness, real authentication/backend.

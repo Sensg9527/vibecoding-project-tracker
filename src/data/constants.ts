@@ -43,3 +43,7 @@ export const DEMO_PASSWORD = 'userdemo';
 // M12: sessionStorage key for the demo session flag (tab-scoped — survives a
 // refresh, cleared by logout and by closing the tab).
 export const DEMO_SESSION_KEY = 'vibetracker.demoSession';
+
+// M12 drag & drop — per-column card ordering lives under its own localStorage
+// key so the locked `Task` model stays untouched. Holds an array of task ids.
+export const TASK_ORDER_KEY = 'vibetracker.taskOrder';
